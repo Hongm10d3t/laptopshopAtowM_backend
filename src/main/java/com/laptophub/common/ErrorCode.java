@@ -4,6 +4,11 @@ import org.springframework.http.HttpStatus;
 
 public enum ErrorCode {
 
+    // Đã được gắn mã lỗi và thông báo mặc định
+    // Tức là khi truyền vào AppException chỉ cần truyền ErrorCode chấm tên lỗi
+    // ví dụ: new AppException(ErrorCode.VALIDATION_ERROR)
+    // Thay vì phải truyền mã lỗi và thông báo lỗi
+
     VALIDATION_ERROR(HttpStatus.BAD_REQUEST, "Dữ liệu không hợp lệ"),
     BAD_REQUEST(HttpStatus.BAD_REQUEST, "Yêu cầu không hợp lệ"),
     UNAUTHENTICATED(HttpStatus.UNAUTHORIZED, "Chưa xác thực"),
