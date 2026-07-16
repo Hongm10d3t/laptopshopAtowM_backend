@@ -9,11 +9,22 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.stream.Collectors;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    // Phải khai riêng, không để NoResourceFoundException rơi vào
+    // handleUnexpected() bên dưới — nếu không, mọi URL không tồn tại
+    // (route sai, bot dò quét...) sẽ trả 500 "Lỗi hệ thống" thay vì 404
+    // bình thường, gây nhiễu log/alert không cần thiết.
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleNoResourceFound(NoResourceFoundException ex) {
+        return ResponseEntity.status(ErrorCode.RESOURCE_NOT_FOUND.getHttpStatus())
+                .body(ApiResponse.error(ErrorCode.RESOURCE_NOT_FOUND.name(), ErrorCode.RESOURCE_NOT_FOUND.getDefaultMessage()));
+    }
 
     @ExceptionHandler(AppException.class)
     public ResponseEntity<ApiResponse<Void>> handleAppException(AppException ex) {

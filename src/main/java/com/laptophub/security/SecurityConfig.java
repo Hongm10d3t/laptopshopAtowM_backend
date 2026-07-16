@@ -1,11 +1,12 @@
 package com.laptophub.security;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.laptophub.user.UserService;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
-import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -14,13 +15,17 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 import java.time.Clock;
 
 /**
- * Khung tối thiểu: mở public health/auth/public, còn lại yêu cầu xác thực.
- * Chưa có JWT filter — sẽ thay httpBasic bằng JWT filter ở module auth.
+ * Khung tối thiểu: mở public health/auth/public, còn lại yêu cầu xác thực qua
+ * JwtAuthenticationFilter. Mọi truy cập chưa xác thực (thiếu/hỏng token) đều
+ * đi qua JsonAuthenticationEntryPoint để trả JSON đồng nhất — không dùng
+ * httpBasic nữa (REST API thuần JWT, không cần challenge dạng basic-auth).
  */
 @Configuration
 @EnableMethodSecurity
@@ -28,7 +33,13 @@ import java.time.Clock;
 public class SecurityConfig {
 
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain filterChain(HttpSecurity http,
+                                            AccessTokenService accessTokenService,
+                                            UserService userService,
+                                            AuthenticationEntryPoint jsonAuthenticationEntryPoint) throws Exception {
+        JwtAuthenticationFilter jwtAuthenticationFilter =
+                new JwtAuthenticationFilter(accessTokenService, userService);
+
         http
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -36,10 +47,16 @@ public class SecurityConfig {
                         .requestMatchers("/health", "/auth/**", "/public/**").permitAll()
                         .anyRequest().authenticated()
                 )
-                .httpBasic(Customizer.withDefaults())
+                .exceptionHandling(exceptions -> exceptions.authenticationEntryPoint(jsonAuthenticationEntryPoint))
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
                 .formLogin(AbstractHttpConfigurer::disable);
 
         return http.build();
+    }
+
+    @Bean
+    public AuthenticationEntryPoint jsonAuthenticationEntryPoint(ObjectMapper objectMapper) {
+        return new JsonAuthenticationEntryPoint(objectMapper);
     }
 
     // strength 12, khác mặc định của BCryptPasswordEncoder (10): mặc định 10
