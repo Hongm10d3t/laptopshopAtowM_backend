@@ -1,5 +1,6 @@
 package com.laptophub.security;
 
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -15,12 +16,15 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 
+import java.time.Clock;
+
 /**
  * Khung tối thiểu: mở public health/auth/public, còn lại yêu cầu xác thực.
  * Chưa có JWT filter — sẽ thay httpBasic bằng JWT filter ở module auth.
  */
 @Configuration
 @EnableMethodSecurity
+@EnableConfigurationProperties(JwtProperties.class)
 public class SecurityConfig {
 
     @Bean
@@ -68,5 +72,12 @@ public class SecurityConfig {
     @Bean
     public AuthenticationManager authenticationManager(AuthenticationConfiguration configuration) throws Exception {
         return configuration.getAuthenticationManager();
+    }
+
+    // Bean riêng thay vì gọi thẳng Clock.systemUTC() trong AccessTokenService —
+    // để test có thể tiêm Clock.fixed(...) và không phụ thuộc thời gian hệ thống.
+    @Bean
+    public Clock clock() {
+        return Clock.systemUTC();
     }
 }

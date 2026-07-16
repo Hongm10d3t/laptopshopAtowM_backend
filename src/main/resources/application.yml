@@ -29,6 +29,12 @@ spring:
     locations: classpath:db/migration
     baseline-on-migrate: true
 
+app:
+  jwt:
+    secret: ${JWT_SECRET}
+    issuer: laptophub-backend
+    access-token-ttl: 15m
+
 logging:
   level:
     com.laptophub: DEBUG
