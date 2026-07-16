@@ -17,15 +17,20 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfigurationSource;
 
 import java.time.Clock;
 
 /**
- * Khung tối thiểu: mở public health/auth/public, còn lại yêu cầu xác thực qua
- * JwtAuthenticationFilter. Mọi truy cập chưa xác thực (thiếu/hỏng token) đều
- * đi qua JsonAuthenticationEntryPoint để trả JSON đồng nhất — không dùng
- * httpBasic nữa (REST API thuần JWT, không cần challenge dạng basic-auth).
+ * Security core chính thức dùng Bearer JWT qua JwtAuthenticationFilter, không
+ * còn httpBasic/form login. Route rule: public health/auth/public; /admin/**
+ * yêu cầu ROLE_ADMIN; /customer/** yêu cầu ROLE_CUSTOMER; còn lại chỉ cần đã
+ * xác thực. Chưa xác thực -> JsonAuthenticationEntryPoint (401); xác thực rồi
+ * nhưng sai role -> JsonAccessDeniedHandler (403). CORS gắn qua
+ * CorsConfigurationSource (xem CorsConfig) — không dùng WebMvcConfigurer
+ * song song để tránh 2 nơi tự định nghĩa CORS xung đột nhau.
  */
 @Configuration
 @EnableMethodSecurity
@@ -36,18 +41,26 @@ public class SecurityConfig {
     public SecurityFilterChain filterChain(HttpSecurity http,
                                             AccessTokenService accessTokenService,
                                             UserService userService,
-                                            AuthenticationEntryPoint jsonAuthenticationEntryPoint) throws Exception {
+                                            AuthenticationEntryPoint jsonAuthenticationEntryPoint,
+                                            AccessDeniedHandler jsonAccessDeniedHandler,
+                                            CorsConfigurationSource corsConfigurationSource) throws Exception {
         JwtAuthenticationFilter jwtAuthenticationFilter =
                 new JwtAuthenticationFilter(accessTokenService, userService);
 
         http
+                .cors(cors -> cors.configurationSource(corsConfigurationSource))
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/health", "/auth/**", "/public/**").permitAll()
+                        .requestMatchers("/admin/**").hasRole("ADMIN")
+                        .requestMatchers("/customer/**").hasRole("CUSTOMER")
                         .anyRequest().authenticated()
                 )
-                .exceptionHandling(exceptions -> exceptions.authenticationEntryPoint(jsonAuthenticationEntryPoint))
+                .exceptionHandling(exceptions -> exceptions
+                        .authenticationEntryPoint(jsonAuthenticationEntryPoint)
+                        .accessDeniedHandler(jsonAccessDeniedHandler)
+                )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
                 .formLogin(AbstractHttpConfigurer::disable);
 
@@ -57,6 +70,11 @@ public class SecurityConfig {
     @Bean
     public AuthenticationEntryPoint jsonAuthenticationEntryPoint(ObjectMapper objectMapper) {
         return new JsonAuthenticationEntryPoint(objectMapper);
+    }
+
+    @Bean
+    public AccessDeniedHandler jsonAccessDeniedHandler(ObjectMapper objectMapper) {
+        return new JsonAccessDeniedHandler(objectMapper);
     }
 
     // strength 12, khác mặc định của BCryptPasswordEncoder (10): mặc định 10
