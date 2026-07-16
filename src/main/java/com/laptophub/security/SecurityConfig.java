@@ -7,6 +7,8 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 
 /**
@@ -30,5 +32,14 @@ public class SecurityConfig {
                 .formLogin(AbstractHttpConfigurer::disable);
 
         return http.build();
+    }
+
+    // strength 12, khác mặc định của BCryptPasswordEncoder (10): mặc định 10
+    // được chọn từ nhiều năm trước cho phần cứng cũ hơn; 12 là baseline phổ
+    // biến hiện nay, thời gian hash vẫn chấp nhận được (vài trăm ms) cho
+    // register/login, không cần tune thêm ở MVP.
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder(12);
     }
 }
