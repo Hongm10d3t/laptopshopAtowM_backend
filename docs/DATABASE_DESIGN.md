@@ -1,40 +1,28 @@
 # Database Design — LaptopHub
 
-Tài liệu này mô tả **hướng thiết kế dữ liệu ở mức tổng quan** cho dự án LaptopHub. Đây không phải schema cố định. Trong quá trình phát triển, có thể thêm, bớt hoặc tách bảng nếu nghiệp vụ thực tế yêu cầu.
+Tài liệu mô tả hướng dữ liệu tổng quát, không phải schema bất biến. AI Agent có thể điều chỉnh khi triển khai miễn giữ đúng nghiệp vụ và có Flyway migration.
 
-## 1. Nguyên tắc chung
+## 1. Nguyên tắc
 
-- Sử dụng MySQL và quản lý thay đổi schema bằng Flyway.
-- Entity chỉ mô tả dữ liệu cần thiết cho nghiệp vụ đang triển khai.
-- Tiền sử dụng `BigDecimal` trong Java và kiểu `DECIMAL` trong database.
-- API không trả trực tiếp Entity.
-- Các quan hệ, index và constraint được bổ sung khi bắt đầu triển khai module tương ứng.
-- Không thiết kế quá sâu cho những nghiệp vụ chưa cần dùng.
+- MySQL + Flyway.
+- Tiền dùng `DECIMAL`; Java dùng `BigDecimal`.
+- Dữ liệu đã phát sinh giao dịch ưu tiên status/soft delete.
+- Thêm index, unique constraint và foreign key theo truy vấn thực tế.
+- Không thiết kế quá sâu cho chức năng chưa triển khai.
 
-## 2. Các nhóm dữ liệu chính
+## 2. Nhóm bảng chính
 
-### User và xác thực
-
-Dùng để quản lý:
-
-- Tài khoản khách hàng và Admin.
-- Thông tin cá nhân.
-- Địa chỉ nhận hàng.
-- Thông tin phục vụ đăng nhập và phân quyền.
-
-Các bảng có thể gồm:
+### User và Auth
 
 ```text
 users
 addresses
-refresh_tokens (nếu cần)
+refresh_tokens        (nếu dùng)
 ```
 
+`users` hỗ trợ tối thiểu `ADMIN` và `CUSTOMER`. Guest không cần lưu thành role trong database.
+
 ### Catalog
-
-Dùng để quản lý sản phẩm bán trên hệ thống.
-
-Các bảng chính:
 
 ```text
 categories
@@ -42,155 +30,134 @@ brands
 products
 product_variants
 product_images
+specification_groups  (tùy thiết kế)
+specifications        (tùy thiết kế)
+product_spec_values   (tùy thiết kế)
 ```
 
-Quy ước:
+- `Product` lưu thông tin chung.
+- `ProductVariant` lưu SKU/cấu hình và giá bán.
+- Cart, Order và Inventory tham chiếu variant.
 
-- `Product` mô tả sản phẩm chung.
-- `ProductVariant` mô tả sản phẩm con hoặc cấu hình cụ thể.
-- Giá bán và số lượng tồn được quản lý ở `ProductVariant`.
-- Các thuộc tính cần tìm kiếm hoặc lọc có thể được lưu thành cột riêng hoặc cấu trúc phù hợp với cách triển khai.
+### Inventory
 
-Ví dụ:
+MVP dùng một kho chính nhưng vẫn có thể tạo bảng kho để dễ mở rộng:
 
 ```text
-Product: Lenovo ThinkPad T14
-
-ProductVariant:
-- RAM 16GB
-- SSD 512GB
-- Giá bán
-- Số lượng tồn
+warehouses
+inventory_balances
+stock_receipts
+stock_receipt_items
+inventory_movements
+inventory_reservations
 ```
 
+`inventory_balances` tối thiểu:
+
+```text
+warehouse_id
+product_variant_id
+on_hand_quantity
+reserved_quantity
+version
+```
+
+Ràng buộc gợi ý:
+
+```text
+UNIQUE(warehouse_id, product_variant_id)
+on_hand_quantity >= 0
+reserved_quantity >= 0
+reserved_quantity <= on_hand_quantity
+```
+
+Tồn khả dụng được tính:
+
+```text
+available = on_hand - reserved
+```
+
+`inventory_movements` lưu lịch sử như `RECEIPT`, `RESERVE`, `RELEASE`, `SHIPMENT`, `RETURN`, `ADJUSTMENT_IN`, `ADJUSTMENT_OUT`.
+
+Serial, hàng lỗi và nhiều kho có thể thêm sau mà không bắt buộc trong giai đoạn đầu.
+
 ### Cart
-
-Dùng để lưu giỏ hàng của Customer.
-
-Các bảng có thể gồm:
 
 ```text
 carts
 cart_items
 ```
 
-`CartItem` tham chiếu tới sản phẩm con mà khách thực sự muốn mua.
+- Giỏ Customer lưu trong database.
+- Giỏ Guest có thể lưu phía frontend và hợp nhất sau đăng nhập.
+- Thêm giỏ không giữ tồn.
 
 ### Order
-
-Dùng để quản lý quá trình đặt hàng và theo dõi đơn.
-
-Các bảng chính:
 
 ```text
 orders
 order_items
-order_status_history (có thể bổ sung nếu cần)
+order_status_history
 ```
 
-`OrderItem` nên lưu lại thông tin cần thiết tại thời điểm mua như tên sản phẩm, cấu hình, giá và số lượng. Nhờ đó đơn cũ không bị thay đổi khi sản phẩm được cập nhật sau này.
+Có thể bổ sung:
+
+```text
+return_requests
+return_request_items
+shipments
+```
+
+`order_items` cần lưu snapshot tối thiểu:
+
+```text
+product_variant_id
+product_name
+variant_name
+sku
+unit_price
+quantity
+discount_amount
+```
+
+Địa chỉ giao hàng nên được snapshot trong order hoặc bảng riêng gắn với order.
 
 ### Payment
 
-Dùng để hỗ trợ COD và thanh toán online.
-
-Các bảng có thể gồm:
-
 ```text
 payments
-payment_transactions (nếu cần)
+payment_transactions   (nếu cần)
 ```
 
-Thiết kế cụ thể phụ thuộc vào cổng thanh toán được chọn. Hệ thống cần lưu được trạng thái thanh toán, mã giao dịch và thông tin cần thiết để đối soát.
+Lưu phương thức, trạng thái, số tiền, mã giao dịch và dữ liệu đối soát cần thiết. Không dùng dữ liệu frontend làm nguồn xác nhận thanh toán.
 
 ### Voucher
-
-Dùng để quản lý mã giảm giá và lịch sử sử dụng.
-
-Các bảng có thể gồm:
 
 ```text
 vouchers
 voucher_usages
 ```
 
-Voucher có thể hỗ trợ giảm theo phần trăm hoặc số tiền cố định. Các điều kiện chi tiết được bổ sung theo phạm vi triển khai thực tế.
+Có thể mở rộng điều kiện voucher theo sản phẩm, danh mục hoặc người dùng khi nghiệp vụ cần.
 
 ### Review
-
-Dùng để lưu đánh giá sản phẩm của khách hàng.
-
-Các bảng có thể gồm:
 
 ```text
 reviews
 ```
 
-Review cần liên kết được với người mua và sản phẩm đã mua để backend kiểm tra quyền đánh giá.
+Review phải liên kết được với người mua và dữ liệu đơn hàng để kiểm tra quyền đánh giá.
 
 ### Chatbot
 
-Tùy cách triển khai, có thể có:
-
 ```text
-chat_conversations
-chat_messages
-documents
+chat_conversations  (nếu lưu lịch sử)
+chat_messages       (nếu lưu lịch sử)
 ```
 
-Dữ liệu vector có thể lưu ở dịch vụ hoặc vector store riêng, không bắt buộc nằm trong MySQL.
+Vector store hoặc dữ liệu RAG có thể nằm ngoài MySQL.
 
-## 3. Tồn kho tối giản
-
-Dự án không xây dựng hệ thống quản lý kho đầy đủ.
-
-Nguồn số lượng tồn chính là:
-
-```text
-product_variants.stock_quantity
-```
-
-Luồng xử lý:
-
-```text
-Admin nhập thêm hàng
-→ tăng stockQuantity
-
-Khách đặt hàng
-→ backend kiểm tra đủ hàng
-→ giảm stockQuantity
-
-Đơn bị hủy hợp lệ hoặc thanh toán thất bại
-→ hoàn lại stockQuantity
-```
-
-Thêm sản phẩm vào giỏ không giữ hàng. Hệ thống kiểm tra lại số lượng tại thời điểm checkout.
-
-Cách xử lý đồng thời có thể dùng câu lệnh update có điều kiện, locking hoặc giải pháp tương đương miễn bảo đảm số lượng không bị âm và không bán vượt tồn.
-
-## 4. Thống kê cơ bản
-
-Không cần tạo bảng thống kê riêng trong giai đoạn đầu.
-
-Dashboard Admin có thể truy vấn trực tiếp từ:
-
-```text
-orders
-order_items
-payments
-```
-
-Các thống kê dự kiến:
-
-- Tổng doanh thu trong một khoảng thời gian.
-- Số đơn hoàn thành, đang xử lý hoặc đã hủy.
-- Doanh thu theo ngày hoặc tháng.
-- Giá trị đơn trung bình.
-- Sản phẩm bán chạy.
-
-Doanh thu chủ yếu được tính từ các đơn hoàn thành theo quy tắc nghiệp vụ của hệ thống.
-
-## 5. Quan hệ tổng quát
+## 3. Quan hệ tổng quát
 
 ```text
 User       1 --- N Address
@@ -202,6 +169,10 @@ Brand      1 --- N Product
 Product    1 --- N ProductVariant
 Product    1 --- N ProductImage
 
+Warehouse  1 --- N InventoryBalance
+Variant    1 --- N InventoryBalance
+OrderItem  1 --- N InventoryReservation
+
 Cart       1 --- N CartItem
 Order      1 --- N OrderItem
 Order      1 --- N Payment
@@ -209,15 +180,28 @@ Voucher    1 --- N VoucherUsage
 Product    1 --- N Review
 ```
 
-Số lượng bảng và cách đặt foreign key có thể thay đổi khi code, miễn vẫn giữ đúng mục tiêu nghiệp vụ.
+Quan hệ cụ thể có thể thay đổi khi code, miễn tránh dữ liệu mồ côi và giữ đúng ownership.
 
-## 6. Nguyên tắc khi mở rộng
+## 4. Quy tắc dữ liệu quan trọng
 
-AI Agent hoặc lập trình viên được phép:
+- Tạo đơn và reserve tồn phải cùng transaction.
+- Hủy đơn chỉ release phần tồn đang giữ; không cộng `on_hand` nếu hàng chưa xuất.
+- Xuất hàng giảm cả `on_hand` và `reserved`.
+- Mọi thay đổi tồn phải có movement hoặc reference tương ứng.
+- Không cho tồn âm hoặc bán vượt tồn.
+- Trạng thái Order/Payment/Reservation nên dùng enum rõ nghĩa và kiểm soát chuyển trạng thái.
+- Migration mới không nên sửa phá hủy migration đã chạy; dùng migration bổ sung để thay đổi schema.
 
-- Thêm bảng hoặc cột mới khi một tính năng cần dữ liệu riêng.
-- Tách một bảng lớn thành nhiều bảng nếu giúp code rõ ràng hơn.
-- Bổ sung index, unique constraint hoặc bảng lịch sử khi xuất hiện nhu cầu thực tế.
-- Thay đổi chi tiết schema trước khi module được phát hành.
+## 5. Dashboard
 
-Mọi thay đổi database cần có Flyway migration và không được làm mất dữ liệu đang sử dụng.
+Giai đoạn đầu chưa cần bảng thống kê riêng. Dashboard có thể query tổng hợp từ:
+
+```text
+orders
+order_items
+payments
+inventory_balances
+users
+```
+
+Chỉ thêm bảng tổng hợp/cache khi truy vấn thực tế cho thấy cần thiết.

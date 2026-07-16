@@ -1,10 +1,8 @@
 # Module Plan — LaptopHub
 
-Tài liệu này mô tả **hướng phát triển tổng quát** của dự án. Thứ tự có thể thay đổi theo tiến độ, mức độ phụ thuộc và kết quả trong quá trình code.
+Mục tiêu là phát triển theo các **vertical slice chạy được**, không hoàn thiện quá sâu một module rồi mới kết nối toàn hệ thống.
 
-Mục tiêu là xây dựng từng luồng có thể chạy và demo được, thay vì hoàn thiện toàn bộ chi tiết của một module trước khi kết nối với phần còn lại.
-
-## 1. Các module chính
+## 1. Module dự kiến
 
 ```text
 common
@@ -23,131 +21,129 @@ dashboard
 chatbot
 ```
 
-Tên package hoặc cách chia nhỏ bên trong có thể được điều chỉnh khi triển khai.
+Tên và cách chia nhỏ có thể thay đổi khi triển khai.
 
 ## 2. Lộ trình đề xuất
 
-### Giai đoạn 1 — Nền tảng dự án
+### Giai đoạn 1 — Nền tảng
 
-- Cấu trúc Spring Boot.
-- Cấu hình môi trường.
-- Kết nối MySQL.
-- Flyway.
+- Chuẩn hóa cấu hình môi trường.
+- MySQL, Flyway, validation, logging.
 - Response và exception chung.
-- Logging và validation cơ bản.
+- Security skeleton và tài liệu API.
 
 ### Giai đoạn 2 — Auth và User
 
-- Đăng ký, đăng nhập.
-- JWT và phân quyền Customer/Admin.
-- Quản lý thông tin cá nhân và địa chỉ.
-- Admin quản lý tài khoản khách hàng ở mức cần thiết.
+- Đăng ký, đăng nhập, refresh token nếu dùng.
+- Role `ADMIN`, `CUSTOMER`.
+- Hồ sơ và địa chỉ Customer.
+- Admin xem/khóa/mở tài khoản ở mức cần thiết.
 
-### Giai đoạn 3 — Catalog và tồn kho tối giản
+### Giai đoạn 3 — Catalog
 
-- Danh mục và thương hiệu.
-- Sản phẩm và sản phẩm con.
-- Hình ảnh, giá và thông số sản phẩm.
-- Admin CRUD sản phẩm.
-- Tìm kiếm, lọc, sắp xếp và phân trang.
-- Mỗi sản phẩm con có trường số lượng tồn.
-- Admin có thể nhập thêm số lượng.
+- Category, Brand, Product, ProductVariant.
+- Ảnh, giá, SKU và thông số kỹ thuật.
+- Admin CRUD và thay đổi trạng thái.
+- Public xem chi tiết, tìm kiếm, lọc, sắp xếp, phân trang.
 
-### Giai đoạn 4 — Cart và Voucher
+### Giai đoạn 4 — Inventory Lite
 
-- Thêm, sửa, xóa sản phẩm trong giỏ.
-- Tính tổng tiền tạm thời.
-- Áp dụng voucher theo các điều kiện được hỗ trợ.
-- Kiểm tra lại giá, voucher và tồn kho khi checkout.
+- Một kho chính.
+- Inventory balance: on-hand, reserved, available.
+- Phiếu nhập và lịch sử movement.
+- Điều chỉnh tồn có lý do.
+- Chống bán vượt tồn.
 
-### Giai đoạn 5 — Order
+Serial và nhiều kho chỉ bổ sung sau nếu tiến độ cho phép.
 
-- Tạo đơn hàng.
-- Lưu thông tin sản phẩm và giá tại thời điểm đặt.
-- Kiểm tra và giảm tồn kho.
-- Theo dõi trạng thái đơn.
-- Customer xem và hủy đơn khi được phép.
-- Admin quản lý và cập nhật trạng thái đơn.
+### Giai đoạn 5 — Cart và Checkout COD
 
-Nên làm luồng COD trước để hoàn thiện quy trình đặt hàng cơ bản.
+- Cart cho Customer; Guest cart có thể lưu phía frontend.
+- Tính lại giá và kiểm tra trạng thái sản phẩm khi checkout.
+- Tạo Order/OrderItem snapshot.
+- Reserve tồn khi đặt hàng thành công.
+- Hoàn thiện luồng COD trước.
 
-### Giai đoạn 6 — Payment online
+### Giai đoạn 6 — Xử lý đơn hàng
 
-- Tạo yêu cầu thanh toán.
+- Customer xem và hủy đơn hợp lệ.
+- Admin xác nhận, chuẩn bị, xuất và hoàn tất đơn.
+- Release tồn khi hủy; giảm on-hand khi xuất.
+- Lưu lịch sử trạng thái.
+- Bổ sung yêu cầu trả hàng ở mức MVP.
+
+### Giai đoạn 7 — Voucher và Payment Online
+
+- Voucher cơ bản: thời gian, giá trị tối thiểu, giới hạn sử dụng.
 - Tích hợp một cổng thanh toán phù hợp.
-- Xử lý callback hoặc webhook.
-- Đồng bộ trạng thái Order và Payment.
-- Hoàn tồn khi giao dịch thất bại, bị hủy hoặc hết hạn nếu nghiệp vụ yêu cầu.
+- Callback/webhook xác minh và idempotent.
+- Đồng bộ trạng thái Payment, Order và reservation.
 
-### Giai đoạn 7 — Review
+### Giai đoạn 8 — Review và So sánh
 
-- Customer đánh giá sản phẩm đã mua.
-- Hiển thị điểm và nội dung đánh giá.
-- Admin có thể quản lý các đánh giá không phù hợp.
+- Review sản phẩm đã mua.
+- Admin ẩn review vi phạm.
+- So sánh sản phẩm cùng nhóm dựa trên thông số và giá.
 
-### Giai đoạn 8 — Dashboard cơ bản
+### Giai đoạn 9 — Dashboard
 
-- Tổng doanh thu.
-- Số lượng đơn theo trạng thái.
 - Doanh thu theo thời gian.
-- Giá trị đơn trung bình.
+- Đơn theo trạng thái.
+- Khách hàng.
 - Sản phẩm bán chạy.
+- Sản phẩm sắp hết hàng.
 
-Các số liệu được lấy trực tiếp bằng truy vấn từ dữ liệu đơn hàng, chưa cần hệ thống báo cáo riêng.
+Ưu tiên query trực tiếp; chưa cần data warehouse.
 
-### Giai đoạn 9 — ChatbotAI
+### Giai đoạn 10 — ChatbotAI
 
-- Tư vấn chọn sản phẩm.
-- So sánh sản phẩm.
-- Trả lời chính sách bằng RAG.
-- Hỗ trợ Customer tra cứu thông tin được phép.
-- Hỗ trợ Admin hỏi một số thống kê cơ bản.
-- Lưu lịch sử hội thoại nếu cần.
+- Tư vấn và gợi ý sản phẩm từ catalog.
+- Nhận xét so sánh sản phẩm.
+- Tool/hàm thống kê dành cho Admin.
+- Kiểm tra role trước khi gọi tool.
+- Không cho AI chạy SQL tùy ý.
 
-### Giai đoạn 10 — Hoàn thiện
+### Giai đoạn 11 — Hoàn thiện
 
-- Kiểm thử các luồng chính.
-- Chuẩn hóa lỗi và validation.
-- Bổ sung logging, security và tài liệu API.
-- Tối ưu truy vấn cần thiết.
+- Integration test các luồng chính.
+- Tối ưu query có vấn đề.
+- Rà soát security, transaction, idempotency.
 - Chuẩn bị dữ liệu và kịch bản demo.
 
-## 3. Cách phát triển khuyến nghị
+## 3. Vertical slice ưu tiên
 
-Ưu tiên các vertical slice có thể chạy xuyên suốt:
+Luồng đầu tiên nên chạy xuyên suốt:
 
 ```text
 Admin tạo sản phẩm
-→ Guest xem sản phẩm
-→ Customer thêm giỏ hàng
-→ đặt hàng
-→ thanh toán
-→ Admin xử lý đơn
-→ Customer nhận hàng và đánh giá
+→ Admin nhập kho
+→ Guest xem/tìm sản phẩm
+→ Customer thêm giỏ
+→ Customer đặt đơn COD
+→ hệ thống reserve tồn
+→ Admin xác nhận và xuất đơn
+→ hệ thống giảm tồn
+→ Customer xem đơn và đánh giá
 ```
 
-Sau khi luồng cơ bản hoạt động, tiếp tục bổ sung voucher, dashboard và chatbot.
+Sau khi luồng này ổn mới bổ sung voucher, payment online, return, dashboard và chatbot.
 
-## 4. Mức độ linh hoạt
+## 4. Tiêu chí hoàn thành một chức năng
 
-AI Agent được phép:
+- API và dữ liệu hoạt động đúng.
+- Có validation, phân quyền và xử lý lỗi cần thiết.
+- Không làm sai dữ liệu module khác.
+- Transaction được dùng cho luồng nhiều bước.
+- Có test hoặc kịch bản kiểm tra cho nghiệp vụ quan trọng.
+- Migration và tài liệu được cập nhật nếu contract/schema thay đổi đáng kể.
 
-- Thay đổi thứ tự triển khai nếu phát hiện phụ thuộc hợp lý hơn.
-- Tách hoặc gộp service, DTO, mapper và package để code dễ bảo trì.
-- Đề xuất thư viện hoặc cách triển khai khác khi phù hợp với Spring Boot.
-- Bổ sung migration, test hoặc cấu hình khi một tính năng cần đến.
-- Chọn giải pháp đơn giản trước, sau đó refactor khi nghiệp vụ rõ hơn.
+## 5. Quyền linh hoạt của AI Agent
 
-Không cần triển khai tất cả chi tiết ngay từ đầu. Mỗi giai đoạn chỉ cần đủ để chạy đúng luồng và tạo nền cho bước tiếp theo.
+AI Agent có thể:
 
-## 5. Tiêu chí hoàn thành chung
+- Đổi thứ tự giai đoạn khi có phụ thuộc hợp lý hơn.
+- Tách/gộp DTO, service, mapper hoặc package.
+- Dùng giải pháp kỹ thuật khác nếu đơn giản, phổ biến và tương thích với project.
+- Đề xuất bỏ một phần không quan trọng khỏi sprint hiện tại, nhưng không tự ý bỏ khỏi phạm vi tổng thể.
 
-Một chức năng được xem là hoàn thành khi:
-
-- Có luồng API hoạt động.
-- Dữ liệu được lưu và đọc đúng.
-- Có validation và xử lý lỗi cơ bản.
-- Có phân quyền nếu chức năng yêu cầu.
-- Không làm sai dữ liệu của module khác.
-- Có ít nhất kiểm thử hoặc kịch bản kiểm tra cho luồng quan trọng.
-- Tài liệu được cập nhật khi có thay đổi đáng kể.
+Mỗi thay đổi lớn nên kèm giải thích ngắn: vấn đề, lựa chọn và ảnh hưởng.

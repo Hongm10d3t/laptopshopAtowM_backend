@@ -1,93 +1,156 @@
-# API Convention — LaptopHub Backend
+# API Convention — LaptopHub
 
-## Base URL
+## 1. Base path
 
-Tất cả API có prefix `/api/v1` (cấu hình qua `server.servlet.context-path`).
+API dùng prefix:
 
-Ví dụ: `GET /api/v1/products`
+```text
+/api/v1
+```
 
-## Response format
+Nhóm endpoint khuyến nghị:
 
-Mọi response (thành công lẫn lỗi) đều bọc trong `ApiResponse<T>` (`com.laptophub.common.ApiResponse`):
+```text
+/api/v1/auth/**
+/api/v1/public/**
+/api/v1/customer/**
+/api/v1/admin/**
+```
+
+Tên endpoint có thể điều chỉnh theo module, nhưng cần nhất quán và dùng danh từ số nhiều.
+
+## 2. Response chung
+
+Thành công:
 
 ```json
 {
   "success": true,
   "message": "OK",
-  "data": { },
-  "timestamp": "2026-07-02T02:30:00Z"
+  "data": {},
+  "timestamp": "2026-07-15T18:00:00Z"
 }
 ```
 
-Khi lỗi:
+Thất bại:
 
 ```json
 {
   "success": false,
-  "message": "Không tìm thấy dữ liệu",
-  "errorCode": "RESOURCE_NOT_FOUND",
-  "timestamp": "2026-07-02T02:30:00Z"
+  "message": "Dữ liệu không hợp lệ",
+  "errorCode": "VALIDATION_ERROR",
+  "timestamp": "2026-07-15T18:00:00Z"
 }
 ```
 
-`data` và `errorCode` bị ẩn khỏi JSON khi null (`@JsonInclude(NON_NULL)`).
+Có thể bỏ các field null. Không trả stack trace hoặc thông tin nội bộ cho client.
 
-## Error handling
+## 3. HTTP method và status
 
-Toàn bộ exception được xử lý tập trung tại `com.laptophub.common.exception.GlobalExceptionHandler`:
+- `GET`: đọc dữ liệu — `200`.
+- `POST`: tạo mới hoặc thực hiện action — `201` hoặc `200`.
+- `PUT/PATCH`: cập nhật — `200`.
+- `DELETE`: chỉ dùng khi thực sự xóa; dữ liệu nghiệp vụ thường đổi status — `204` hoặc `200`.
+- Validation sai — `400`.
+- Chưa đăng nhập — `401`.
+- Không đủ quyền — `403`.
+- Không tìm thấy — `404`.
+- Xung đột dữ liệu — `409`.
+- Lỗi hệ thống — `500`.
 
-| Exception | HTTP Status | errorCode |
-|---|---|---|
-| `AppException` (business exception, ném theo `ErrorCode`) | tùy `ErrorCode` | tên `ErrorCode` |
-| `MethodArgumentNotValidException` (lỗi `@Valid` trên body) | 400 | `VALIDATION_ERROR` |
-| `ConstraintViolationException` (lỗi `@Validated` trên param/path) | 400 | `VALIDATION_ERROR` |
-| `Exception` khác (fallback) | 500 | `INTERNAL_ERROR` |
+## 4. DTO và validation
 
-Các `ErrorCode` hiện có (`com.laptophub.common.ErrorCode`): `VALIDATION_ERROR`, `BAD_REQUEST`, `UNAUTHENTICATED`, `UNAUTHORIZED`, `RESOURCE_NOT_FOUND`, `RESOURCE_CONFLICT`, `INTERNAL_ERROR`. Bổ sung thêm khi nghiệp vụ cần.
+- Request/response dùng DTO riêng; không expose Entity.
+- Request dùng Bean Validation như `@NotBlank`, `@NotNull`, `@Positive` khi phù hợp.
+- Service vẫn phải kiểm tra các điều kiện nghiệp vụ như tồn kho, trạng thái đơn, quyền sở hữu và voucher.
+- Không tin giá, tổng tiền, role hoặc trạng thái do frontend gửi lên.
 
-## Phân trang
+## 5. Phân trang, lọc và sắp xếp
 
-API trả danh sách phân trang bọc `PageResponse<T>` (`com.laptophub.common.dto.PageResponse`) vào trong `data` của `ApiResponse`:
+Query gợi ý:
+
+```text
+?page=0&size=20&sort=createdAt,desc
+```
+
+Response phân trang:
 
 ```json
 {
-  "success": true,
-  "message": "OK",
-  "data": {
-    "content": [ ],
-    "page": 0,
-    "size": 20,
-    "totalElements": 42,
-    "totalPages": 3,
-    "last": false
-  },
-  "timestamp": "2026-07-03T02:30:00Z"
+  "content": [],
+  "page": 0,
+  "size": 20,
+  "totalElements": 0,
+  "totalPages": 0,
+  "last": true
 }
 ```
 
-`page` bắt đầu từ 0, khớp `Pageable`/`Page` của Spring Data. Tạo qua `PageResponse.of(page)`.
+- `page` bắt đầu từ `0`.
+- Có giới hạn `size` hợp lý để tránh query quá lớn.
+- Filter chỉ thêm khi có nhu cầu thật; tránh tạo một API với quá nhiều tham số khó bảo trì.
 
-## Health check
+## 6. Error code
 
-`GET /api/v1/health` — không cần xác thực, dùng để kiểm tra server đang chạy.
+Dùng error code ổn định, ví dụ:
 
-```json
-{
-  "success": true,
-  "message": "OK",
-  "data": { "status": "UP", "service": "laptophub-backend", "timestamp": "..." },
-  "timestamp": "2026-07-03T02:30:00Z"
-}
+```text
+VALIDATION_ERROR
+UNAUTHENTICATED
+UNAUTHORIZED
+RESOURCE_NOT_FOUND
+RESOURCE_CONFLICT
+INSUFFICIENT_STOCK
+INVALID_ORDER_STATUS
+VOUCHER_NOT_APPLICABLE
+PAYMENT_FAILED
+INTERNAL_ERROR
 ```
 
-## Quy ước khác
+Có thể bổ sung theo module. Message dành cho người dùng; error code dành cho frontend xử lý.
 
-- Không trả Entity trực tiếp — mọi request/response dùng DTO riêng theo module.
-- Tiền tệ dùng `BigDecimal`.
-- Nghiệp vụ ghi nhiều bảng dùng `@Transactional`.
-- Xóa dữ liệu quan trọng dùng soft-delete qua status `ACTIVE`/`INACTIVE`, không xóa vật lý.
+## 7. Security
 
-## Lịch sử thay đổi
+- API public chỉ gồm nội dung cần công khai.
+- API Customer yêu cầu đăng nhập và kiểm tra quyền sở hữu tài nguyên.
+- API Admin yêu cầu role Admin.
+- Không dựa vào việc frontend ẩn nút để bảo vệ API.
 
-- 2026-07-02: Khởi tạo convention — response format, error handling, base URL.
-- 2026-07-03: Bổ sung quy ước phân trang (`PageResponse<T>`) và `GET /health`.
+Ví dụ:
+
+```java
+@PreAuthorize("hasRole('ADMIN')")
+```
+
+## 8. Transaction và idempotency
+
+Các action sau phải chạy transaction khi cập nhật nhiều dữ liệu:
+
+- Tạo đơn và giữ tồn.
+- Hủy đơn và giải phóng tồn.
+- Xuất đơn.
+- Xác nhận phiếu nhập.
+- Áp dụng/ghi nhận voucher.
+- Xử lý callback thanh toán.
+
+Callback thanh toán và action nhạy cảm nên có cơ chế chống xử lý lặp khi cần.
+
+## 9. Quy ước action endpoint
+
+Khi action không phù hợp với CRUD thuần, có thể dùng endpoint rõ nghĩa:
+
+```text
+POST /admin/stock-receipts/{id}/confirm
+POST /admin/orders/{id}/confirm
+POST /admin/orders/{id}/ship
+POST /customer/orders/{id}/cancel
+POST /customer/orders/{id}/return-requests
+```
+
+Không bắt buộc bám cứng ví dụ trên, nhưng tên action phải phản ánh đúng nghiệp vụ.
+
+## 10. Tài liệu API
+
+- Dùng OpenAPI/Swagger nếu thuận tiện.
+- Mỗi endpoint cần mô tả request, quyền truy cập, lỗi nghiệp vụ chính và response mẫu.
+- Khi thay đổi contract đáng kể, cập nhật tài liệu cùng pull request/commit.
