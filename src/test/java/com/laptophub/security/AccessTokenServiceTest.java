@@ -56,8 +56,14 @@ class AccessTokenServiceTest {
         AccessToken issued = accessTokenService.issue(principal(UserRole.CUSTOMER));
         SecretKey key = Keys.hmacShaKeyFor(STRONG_SECRET.getBytes(StandardCharsets.UTF_8));
 
+        // Phải gắn .clock(fixedClock) như AccessTokenService làm nội bộ —
+        // nếu không, parser dùng giờ hệ thống thật để check exp, và test sẽ
+        // ngẫu nhiên fail một khi đồng hồ thật trôi qua FIXED_NOW + 15 phút
+        // (đúng thứ ASU-11 yêu cầu tránh: "test không phụ thuộc thời gian hệ
+        // thống").
         Claims rawClaims = Jwts.parser()
                 .verifyWith(key)
+                .clock(() -> Date.from(fixedClock.instant()))
                 .build()
                 .parseSignedClaims(issued.token())
                 .getPayload();
