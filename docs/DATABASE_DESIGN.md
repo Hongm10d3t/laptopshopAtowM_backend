@@ -22,6 +22,11 @@ refresh_tokens        (nếu dùng)
 
 `users` hỗ trợ tối thiểu `ADMIN` và `CUSTOMER`. Guest không cần lưu thành role trong database.
 
+Ranh giới ownership giữa module `auth`/`security`/`user`, schema chi tiết
+`refresh_tokens`, JWT claims/TTL và quy tắc logout/rotation/reuse detection đã
+chốt ở `AUTH_SECURITY_USER_CONTRACT.md` (gói ASU-00) — không lặp lại chi tiết
+đó ở đây.
+
 ### Catalog
 
 ```text

@@ -109,6 +109,10 @@ INTERNAL_ERROR
 
 Có thể bổ sung theo module. Message dành cho người dùng; error code dành cho frontend xử lý.
 
+Danh sách endpoint, quyền truy cập, HTTP status và error code riêng cho
+`auth`/`security`/`user` (đăng ký, đăng nhập, refresh, logout...) đã chốt ở
+`AUTH_SECURITY_USER_CONTRACT.md` (gói ASU-00) — không lặp lại chi tiết đó ở đây.
+
 ## 7. Security
 
 - API public chỉ gồm nội dung cần công khai.
