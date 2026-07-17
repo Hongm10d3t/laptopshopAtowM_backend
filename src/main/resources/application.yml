@@ -34,6 +34,8 @@ app:
     secret: ${JWT_SECRET}
     issuer: laptophub-backend
     access-token-ttl: 15m
+  refresh-token:
+    ttl: 30d
 
 logging:
   level:

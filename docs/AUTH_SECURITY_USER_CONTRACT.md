@@ -76,11 +76,14 @@ user     --> (không phụ thuộc auth/security)
     ghi nhận yêu cầu.
 - **Access token claims**:
   - `sub`: userId (string)
+  - `email`: email đã normalize (không phải dữ liệu bí mật — tiện cho client
+    hiển thị mà không cần gọi thêm API; cập nhật lại so với bản ASU-00 gốc,
+    khớp `AccessTokenService` đã triển khai và đã có test khóa hành vi)
   - `role`: `ADMIN` | `CUSTOMER`
   - `jti`: UUID định danh token (phục vụ audit/log, **không** dùng để
     blacklist ở ASU-00)
   - `iat`, `exp`: chuẩn JWT
-  - Không nhét email, password hay dữ liệu nhạy cảm khác vào claims.
+  - Không nhét password, phone, address hay dữ liệu nhạy cảm khác vào claims.
 - **TTL**:
   - Access token: **15 phút**.
   - Refresh token: **30 ngày**.
@@ -93,15 +96,20 @@ user     --> (không phụ thuộc auth/security)
   encode base64url).
 - Server chỉ lưu **hash** (SHA-256) của refresh token trong bảng
   `refresh_tokens`, **không bao giờ lưu plaintext**.
-- Schema tối thiểu bảng `refresh_tokens` (thuộc `auth`, bổ sung chi tiết cho
-  `DATABASE_DESIGN.md`):
+- Schema bảng `refresh_tokens` (thuộc `auth`, bổ sung chi tiết cho
+  `DATABASE_DESIGN.md`; đã triển khai ở migration `V2`, nhiều hơn bản tối
+  thiểu ASU-00 gốc — thêm `family_id`/`replaced_by_token_id`/`revoke_reason`
+  để hỗ trợ reuse detection theo family thay vì chỉ revoke từng token lẻ):
 
 ```text
 id
 user_id
-token_hash          UNIQUE
+token_hash            UNIQUE
+family_id             nhóm các token cùng 1 chuỗi rotation
 expires_at
-revoked_at          (null nếu còn hiệu lực)
+revoked_at            (null nếu còn hiệu lực)
+replaced_by_token_id  self-FK, set khi bị rotate
+revoke_reason         LOGOUT | LOGOUT_ALL | ROTATED | REUSE_DETECTED | NEW_LOGIN
 created_at
 ```
 

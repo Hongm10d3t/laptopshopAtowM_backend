@@ -23,14 +23,19 @@ import org.springframework.web.cors.CorsConfigurationSource;
 
 import java.time.Clock;
 
+import static org.springframework.http.HttpMethod.POST;
+
 /**
  * Security core chính thức dùng Bearer JWT qua JwtAuthenticationFilter, không
- * còn httpBasic/form login. Route rule: public health/auth/public; /admin/**
- * yêu cầu ROLE_ADMIN; /customer/** yêu cầu ROLE_CUSTOMER; còn lại chỉ cần đã
- * xác thực. Chưa xác thực -> JsonAuthenticationEntryPoint (401); xác thực rồi
- * nhưng sai role -> JsonAccessDeniedHandler (403). CORS gắn qua
- * CorsConfigurationSource (xem CorsConfig) — không dùng WebMvcConfigurer
- * song song để tránh 2 nơi tự định nghĩa CORS xung đột nhau.
+ * còn httpBasic/form login. Route rule: public health/public; public đúng 3
+ * endpoint auth không cần token trước (register/login/refresh) — phần còn
+ * lại của /auth/** (logout, logout-all, change-password) rơi vào
+ * anyRequest().authenticated() vì cần xác thực theo hợp đồng; /admin/** yêu
+ * cầu ROLE_ADMIN; /customer/** yêu cầu ROLE_CUSTOMER. Chưa xác thực ->
+ * JsonAuthenticationEntryPoint (401); xác thực rồi nhưng sai role ->
+ * JsonAccessDeniedHandler (403). CORS gắn qua CorsConfigurationSource (xem
+ * CorsConfig) — không dùng WebMvcConfigurer song song để tránh 2 nơi tự định
+ * nghĩa CORS xung đột nhau.
  */
 @Configuration
 @EnableMethodSecurity
@@ -52,7 +57,8 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/health", "/auth/**", "/public/**").permitAll()
+                        .requestMatchers("/health", "/public/**").permitAll()
+                        .requestMatchers(POST, "/auth/register", "/auth/login", "/auth/refresh").permitAll()
                         .requestMatchers("/admin/**").hasRole("ADMIN")
                         .requestMatchers("/customer/**").hasRole("CUSTOMER")
                         .anyRequest().authenticated()

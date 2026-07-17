@@ -22,15 +22,12 @@ import java.util.Objects;
 // cuối lúc nào" chung chung như User.
 //
 // userId/replacedByTokenId là FK ở DB (xem V2 migration) nhưng map bằng
-// Long thuần thay vì @ManyToOne — gói này chỉ định nghĩa schema/entity
-// (không tạo repository/service), chưa có chỗ nào cần navigate quan hệ nên
-// tránh phức tạp lazy-loading không cần thiết.
+// Long thuần thay vì @ManyToOne — chưa có navigate quan hệ nào thật sự cần
+// dùng, tránh phức tạp lazy-loading không cần thiết.
 //
-// Cố tình KHÔNG thêm method đổi trạng thái (revoke/replace) ở gói này —
-// chữ ký chính xác (nhận Instant từ Clock injected hay không, gộp
-// revokedAt+replacedByTokenId+revokeReason vào 1 lời gọi hay tách riêng)
-// nên thiết kế cùng lúc với service rotation/refresh thật, tránh đoán sai
-// rồi phải sửa lại.
+// revoke()/markReplacedBy() nhận Instant từ caller (không tự gọi
+// Instant.now()) — khớp pattern Clock injected đã dùng ở AccessTokenService,
+// giúp service rotation/refresh (ASU-23/24) test được deterministic.
 @Entity
 @Table(name = "refresh_tokens")
 @Getter
@@ -78,5 +75,18 @@ public class RefreshToken {
     public static RefreshToken create(Long userId, String tokenHash, String familyId, Instant expiresAt,
                                        Instant createdAt) {
         return new RefreshToken(userId, tokenHash, familyId, expiresAt, createdAt);
+    }
+
+    // Dùng cho logout/logout-all/reuse detection/rotation. revokedAt truyền
+    // vào từ caller (Clock injected) thay vì Instant.now() ở đây.
+    public void revoke(Instant revokedAt, RevokeReason reason) {
+        this.revokedAt = Objects.requireNonNull(revokedAt, "revokedAt must not be null");
+        this.revokeReason = Objects.requireNonNull(reason, "reason must not be null");
+    }
+
+    // Chỉ dùng lúc rotation (ASU-24): gọi sau khi đã tạo token mới và biết
+    // id của nó, cùng với revoke(now, ROTATED) trên chính token này.
+    public void markReplacedBy(Long newTokenId) {
+        this.replacedByTokenId = Objects.requireNonNull(newTokenId, "newTokenId must not be null");
     }
 }
