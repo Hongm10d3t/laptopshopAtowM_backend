@@ -62,4 +62,14 @@ public class UserService {
             throw new AppException(ErrorCode.EMAIL_ALREADY_EXISTS);
         }
     }
+
+    // Chỉ dùng bởi AdminBootstrapRunner lúc khởi động app — không expose qua
+    // API công khai nào. Caller đã tự kiểm tra "chưa có ADMIN nào" trước khi
+    // gọi (existsByRole), nên không lặp lại check trùng email/race ở đây như
+    // createCustomer.
+    @Transactional
+    public User createAdmin(String normalizedEmail, String passwordHash, String fullName) {
+        User user = User.create(normalizedEmail, passwordHash, fullName, null, UserRole.ADMIN);
+        return userRepository.saveAndFlush(user);
+    }
 }

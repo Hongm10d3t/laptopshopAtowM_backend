@@ -36,6 +36,9 @@ app:
     access-token-ttl: 15m
   refresh-token:
     ttl: 30d
+  admin:
+    email: ${ADMIN_EMAIL}
+    password: ${ADMIN_PASSWORD}
 
 logging:
   level:
