@@ -29,17 +29,20 @@ public class AuthController {
     private final LoginService loginService;
     private final RefreshService refreshService;
     private final LogoutService logoutService;
+    private final ChangePasswordService changePasswordService;
     private final CurrentUserProvider currentUserProvider;
     private final RefreshTokenCookieFactory refreshTokenCookieFactory;
 
     public AuthController(RegisterService registerService, LoginService loginService,
                            RefreshService refreshService, LogoutService logoutService,
+                           ChangePasswordService changePasswordService,
                            CurrentUserProvider currentUserProvider,
                            RefreshTokenCookieFactory refreshTokenCookieFactory) {
         this.registerService = registerService;
         this.loginService = loginService;
         this.refreshService = refreshService;
         this.logoutService = logoutService;
+        this.changePasswordService = changePasswordService;
         this.currentUserProvider = currentUserProvider;
         this.refreshTokenCookieFactory = refreshTokenCookieFactory;
     }
@@ -99,5 +102,11 @@ public class AuthController {
         logoutService.logout(currentUserProvider.getCurrentUser().userId(), RevokeReason.LOGOUT_ALL);
         httpResponse.addHeader(HttpHeaders.SET_COOKIE, refreshTokenCookieFactory.clear().toString());
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/change-password")
+    public ResponseEntity<ApiResponse<Void>> changePassword(@Valid @RequestBody ChangePasswordRequest request) {
+        changePasswordService.changePassword(currentUserProvider.getCurrentUser().userId(), request);
+        return ResponseEntity.ok(ApiResponse.success("Đổi mật khẩu thành công", null));
     }
 }
