@@ -1,7 +1,7 @@
 package com.laptophub.security;
 
-import com.laptophub.user.User;
-import com.laptophub.user.UserRole;
+import com.laptophub.user.entity.User;
+import com.laptophub.user.entity.UserRole;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;

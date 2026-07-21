@@ -1,7 +1,7 @@
 package com.laptophub.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.laptophub.user.UserService;
+import com.laptophub.user.service.UserService;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

@@ -1,4 +1,4 @@
-package com.laptophub.user;
+package com.laptophub.user.entity;
 
 import com.laptophub.common.entity.BaseEntity;
 import jakarta.persistence.Column;
@@ -73,5 +73,12 @@ public class User extends BaseEntity {
             throw new IllegalArgumentException("newPasswordHash must not be null or blank");
         }
         this.passwordHash = newPasswordHash;
+    }
+
+    // Customer tự sửa hồ sơ (fullName/phone) — không đổi email/role/status qua
+    // đường này. phone nullable giống cột DB nên không requireNonNull.
+    public void updateProfile(String fullName, String phone) {
+        this.fullName = Objects.requireNonNull(fullName, "fullName must not be null");
+        this.phone = phone;
     }
 }

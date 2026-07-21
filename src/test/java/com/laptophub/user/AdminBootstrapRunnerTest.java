@@ -1,6 +1,10 @@
 package com.laptophub.user;
 
 import com.laptophub.security.SecurityConfig;
+import com.laptophub.user.entity.User;
+import com.laptophub.user.entity.UserRole;
+import com.laptophub.user.repository.UserRepository;
+import com.laptophub.user.service.UserService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;

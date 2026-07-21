@@ -1,8 +1,8 @@
 package com.laptophub.security;
 
-import com.laptophub.user.User;
-import com.laptophub.user.UserRepository;
-import com.laptophub.user.UserRole;
+import com.laptophub.user.entity.User;
+import com.laptophub.user.repository.UserRepository;
+import com.laptophub.user.entity.UserRole;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;

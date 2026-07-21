@@ -1,8 +1,12 @@
-package com.laptophub.user;
+package com.laptophub.user.service;
 
 import com.laptophub.common.ErrorCode;
 import com.laptophub.common.exception.AppException;
 import com.laptophub.config.JpaAuditingConfig;
+import com.laptophub.user.entity.User;
+import com.laptophub.user.entity.UserRole;
+import com.laptophub.user.entity.UserStatus;
+import com.laptophub.user.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

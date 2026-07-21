@@ -2,10 +2,10 @@ package com.laptophub.auth;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.laptophub.auth.dto.RegisterRequest;
-import com.laptophub.user.User;
-import com.laptophub.user.UserRepository;
-import com.laptophub.user.UserRole;
-import com.laptophub.user.UserStatus;
+import com.laptophub.user.entity.User;
+import com.laptophub.user.repository.UserRepository;
+import com.laptophub.user.entity.UserRole;
+import com.laptophub.user.entity.UserStatus;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;

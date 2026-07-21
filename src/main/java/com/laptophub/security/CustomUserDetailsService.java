@@ -1,8 +1,8 @@
 package com.laptophub.security;
 
 import com.laptophub.user.EmailNormalizer;
-import com.laptophub.user.User;
-import com.laptophub.user.UserService;
+import com.laptophub.user.entity.User;
+import com.laptophub.user.service.UserService;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;

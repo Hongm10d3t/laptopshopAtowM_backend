@@ -3,8 +3,8 @@ package com.laptophub.auth.service;
 import com.laptophub.auth.dto.RegisterRequest;
 import com.laptophub.auth.dto.RegisterResponse;
 import com.laptophub.user.EmailNormalizer;
-import com.laptophub.user.User;
-import com.laptophub.user.UserService;
+import com.laptophub.user.entity.User;
+import com.laptophub.user.service.UserService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 

@@ -13,9 +13,9 @@ import com.laptophub.common.exception.AppException;
 import com.laptophub.security.AccessToken;
 import com.laptophub.security.AccessTokenService;
 import com.laptophub.security.UserPrincipal;
-import com.laptophub.user.User;
-import com.laptophub.user.UserService;
-import com.laptophub.user.UserStatus;
+import com.laptophub.user.entity.User;
+import com.laptophub.user.service.UserService;
+import com.laptophub.user.entity.UserStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 

@@ -1,8 +1,8 @@
 package com.laptophub.security;
 
-import com.laptophub.user.User;
-import com.laptophub.user.UserRole;
-import com.laptophub.user.UserStatus;
+import com.laptophub.user.entity.User;
+import com.laptophub.user.entity.UserRole;
+import com.laptophub.user.entity.UserStatus;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;

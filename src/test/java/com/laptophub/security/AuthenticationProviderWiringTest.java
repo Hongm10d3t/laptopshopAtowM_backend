@@ -1,8 +1,8 @@
 package com.laptophub.security;
 
-import com.laptophub.user.User;
-import com.laptophub.user.UserRole;
-import com.laptophub.user.UserService;
+import com.laptophub.user.entity.User;
+import com.laptophub.user.entity.UserRole;
+import com.laptophub.user.service.UserService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

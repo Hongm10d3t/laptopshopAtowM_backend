@@ -1,7 +1,10 @@
-package com.laptophub.user;
+package com.laptophub.user.service;
 
 import com.laptophub.common.ErrorCode;
 import com.laptophub.common.exception.AppException;
+import com.laptophub.user.entity.User;
+import com.laptophub.user.entity.UserRole;
+import com.laptophub.user.repository.UserRepository;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

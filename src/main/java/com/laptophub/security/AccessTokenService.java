@@ -1,6 +1,6 @@
 package com.laptophub.security;
 
-import com.laptophub.user.UserRole;
+import com.laptophub.user.entity.UserRole;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;

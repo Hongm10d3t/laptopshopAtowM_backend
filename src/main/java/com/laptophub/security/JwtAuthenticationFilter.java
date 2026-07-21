@@ -1,7 +1,7 @@
 package com.laptophub.security;
 
-import com.laptophub.user.User;
-import com.laptophub.user.UserService;
+import com.laptophub.user.entity.User;
+import com.laptophub.user.service.UserService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;

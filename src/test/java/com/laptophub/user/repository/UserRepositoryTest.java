@@ -1,6 +1,9 @@
-package com.laptophub.user;
+package com.laptophub.user.repository;
 
 import com.laptophub.config.JpaAuditingConfig;
+import com.laptophub.user.EmailNormalizer;
+import com.laptophub.user.entity.User;
+import com.laptophub.user.entity.UserRole;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
