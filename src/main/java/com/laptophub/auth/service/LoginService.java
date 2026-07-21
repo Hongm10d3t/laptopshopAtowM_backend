@@ -40,10 +40,10 @@ public class LoginService {
     private final Clock clock;
 
     public LoginService(AuthenticationManager authenticationManager,
-                         AccessTokenService accessTokenService,
-                         RefreshTokenRepository refreshTokenRepository,
-                         RefreshTokenProperties refreshTokenProperties,
-                         Clock clock) {
+            AccessTokenService accessTokenService,
+            RefreshTokenRepository refreshTokenRepository,
+            RefreshTokenProperties refreshTokenProperties,
+            Clock clock) {
         this.authenticationManager = authenticationManager;
         this.accessTokenService = accessTokenService;
         this.refreshTokenRepository = refreshTokenRepository;
@@ -74,7 +74,8 @@ public class LoginService {
         return new LoginResult(response, rawRefreshToken);
     }
 
-    // BadCredentialsException phủ cả "email không tồn tại" (DaoAuthenticationProvider
+    // BadCredentialsException phủ cả "email không tồn tại"
+    // (DaoAuthenticationProvider
     // với hideUserNotFoundExceptions=true tự quy về đây, xem ASU-10) lẫn "sai
     // mật khẩu" — cùng map về INVALID_CREDENTIALS, không phân biệt ra client.
     // DisabledException (user BLOCKED) tách riêng vì đây là tín hiệu khác,

@@ -37,6 +37,10 @@ import static org.springframework.http.HttpMethod.POST;
  * CorsConfig) — không dùng WebMvcConfigurer song song để tránh 2 nơi tự định
  * nghĩa CORS xung đột nhau.
  */
+
+// Đây chính là nơi tạo ra Filter chain (chuỗi lọc) trước khi request đi vào
+// Controller. Filter chain này sẽ được Spring Security tự động áp dụng cho tất
+// cả request đến ứng dụng.
 @Configuration
 @EnableMethodSecurity
 @EnableConfigurationProperties(JwtProperties.class)
@@ -44,13 +48,12 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http,
-                                            AccessTokenService accessTokenService,
-                                            UserService userService,
-                                            AuthenticationEntryPoint jsonAuthenticationEntryPoint,
-                                            AccessDeniedHandler jsonAccessDeniedHandler,
-                                            CorsConfigurationSource corsConfigurationSource) throws Exception {
-        JwtAuthenticationFilter jwtAuthenticationFilter =
-                new JwtAuthenticationFilter(accessTokenService, userService);
+            AccessTokenService accessTokenService,
+            UserService userService,
+            AuthenticationEntryPoint jsonAuthenticationEntryPoint,
+            AccessDeniedHandler jsonAccessDeniedHandler,
+            CorsConfigurationSource corsConfigurationSource) throws Exception {
+        JwtAuthenticationFilter jwtAuthenticationFilter = new JwtAuthenticationFilter(accessTokenService, userService);
 
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
@@ -61,12 +64,10 @@ public class SecurityConfig {
                         .requestMatchers(POST, "/auth/register", "/auth/login", "/auth/refresh").permitAll()
                         .requestMatchers("/admin/**").hasRole("ADMIN")
                         .requestMatchers("/customer/**").hasRole("CUSTOMER")
-                        .anyRequest().authenticated()
-                )
+                        .anyRequest().authenticated())
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint(jsonAuthenticationEntryPoint)
-                        .accessDeniedHandler(jsonAccessDeniedHandler)
-                )
+                        .accessDeniedHandler(jsonAccessDeniedHandler))
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
                 .formLogin(AbstractHttpConfigurer::disable);
 
@@ -100,7 +101,7 @@ public class SecurityConfig {
     // trước khi so khớp mật khẩu — đây là tín hiệu khác, không phải lộ email.
     @Bean
     public DaoAuthenticationProvider authenticationProvider(UserDetailsService userDetailsService,
-                                                              PasswordEncoder passwordEncoder) {
+            PasswordEncoder passwordEncoder) {
         DaoAuthenticationProvider provider = new DaoAuthenticationProvider(passwordEncoder);
         provider.setUserDetailsService(userDetailsService);
         provider.setHideUserNotFoundExceptions(true);
@@ -108,7 +109,8 @@ public class SecurityConfig {
     }
 
     // Cách chuẩn của Spring Security 6 để expose AuthenticationManager bean
-    // (WebSecurityConfigurerAdapter đã bị xóa) — lấy từ AuthenticationConfiguration,
+    // (WebSecurityConfigurerAdapter đã bị xóa) — lấy từ
+    // AuthenticationConfiguration,
     // nó sẽ dùng đúng DaoAuthenticationProvider bean ở trên.
     @Bean
     public AuthenticationManager authenticationManager(AuthenticationConfiguration configuration) throws Exception {
