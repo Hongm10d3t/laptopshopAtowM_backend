@@ -3,6 +3,7 @@ package com.laptophub.common.exception;
 import com.laptophub.common.ApiResponse;
 import com.laptophub.common.ErrorCode;
 import jakarta.validation.ConstraintViolationException;
+import org.springframework.data.mapping.PropertyReferenceException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
@@ -49,6 +50,16 @@ public class GlobalExceptionHandler {
                 .collect(Collectors.joining("; "));
         return ResponseEntity.status(ErrorCode.VALIDATION_ERROR.getHttpStatus())
                 .body(ApiResponse.error(ErrorCode.VALIDATION_ERROR.name(), message));
+    }
+
+    // Phát sinh khi client truyền ?sort= với tên field không tồn tại trên
+    // entity (Admin category/brand/product list dùng Pageable/Sort trực
+    // tiếp) — không để rơi vào handleUnexpected() (500), đây là lỗi input
+    // của client (400), không phải lỗi hệ thống.
+    @ExceptionHandler(PropertyReferenceException.class)
+    public ResponseEntity<ApiResponse<Void>> handlePropertyReference(PropertyReferenceException ex) {
+        return ResponseEntity.status(ErrorCode.VALIDATION_ERROR.getHttpStatus())
+                .body(ApiResponse.error(ErrorCode.VALIDATION_ERROR.name(), ErrorCode.VALIDATION_ERROR.getDefaultMessage()));
     }
 
     @ExceptionHandler(Exception.class)
