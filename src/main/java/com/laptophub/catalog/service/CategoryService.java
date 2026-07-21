@@ -4,6 +4,7 @@ import com.laptophub.catalog.SlugGenerator;
 import com.laptophub.catalog.dto.CategoryCreateRequest;
 import com.laptophub.catalog.dto.CategoryUpdateRequest;
 import com.laptophub.catalog.entity.Category;
+import com.laptophub.catalog.entity.CategoryStatus;
 import com.laptophub.catalog.repository.CategoryRepository;
 import com.laptophub.common.ErrorCode;
 import com.laptophub.common.exception.AppException;
@@ -11,6 +12,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
 
 @Service
 public class CategoryService {
@@ -47,6 +50,11 @@ public class CategoryService {
 
     public Page<Category> list(Pageable pageable) {
         return categoryRepository.findAll(pageable);
+    }
+
+    // Dùng bởi PublicCategoryController — chỉ danh mục đang hiển thị.
+    public List<Category> listActive() {
+        return categoryRepository.findByStatusOrderByNameAsc(CategoryStatus.ACTIVE);
     }
 
     @Transactional
