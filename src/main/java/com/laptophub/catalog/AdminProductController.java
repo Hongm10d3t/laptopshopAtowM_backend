@@ -1,6 +1,9 @@
 package com.laptophub.catalog;
 
 import com.laptophub.catalog.dto.ProductCreateRequest;
+import com.laptophub.catalog.dto.ProductImageCreateRequest;
+import com.laptophub.catalog.dto.ProductImageReorderRequest;
+import com.laptophub.catalog.dto.ProductImageResponse;
 import com.laptophub.catalog.dto.ProductResponse;
 import com.laptophub.catalog.dto.ProductSummaryResponse;
 import com.laptophub.catalog.dto.ProductUpdateRequest;
@@ -12,6 +15,7 @@ import com.laptophub.catalog.entity.ProductStatus;
 import com.laptophub.catalog.entity.ProductVariant;
 import com.laptophub.catalog.service.BrandService;
 import com.laptophub.catalog.service.CategoryService;
+import com.laptophub.catalog.service.ProductImageService;
 import com.laptophub.catalog.service.ProductService;
 import com.laptophub.catalog.service.ProductVariantService;
 import com.laptophub.common.ApiResponse;
@@ -20,6 +24,7 @@ import jakarta.validation.Valid;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -29,9 +34,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+
 // Quyền truy cập (hasRole('ADMIN') cho /admin/**) đã khai ở SecurityConfig.
-// CRUD lõi Product + endpoint variant ở gói này — endpoint ảnh/thông số kỹ
-// thuật sẽ mở rộng thêm ở các gói sau, cùng controller này.
+// CRUD lõi Product + endpoint variant/ảnh ở gói này — endpoint thông số kỹ
+// thuật sẽ mở rộng thêm ở gói sau, cùng controller này.
 @RestController
 @RequestMapping("/admin/products")
 public class AdminProductController {
@@ -40,13 +47,16 @@ public class AdminProductController {
     private final CategoryService categoryService;
     private final BrandService brandService;
     private final ProductVariantService productVariantService;
+    private final ProductImageService productImageService;
 
     public AdminProductController(ProductService productService, CategoryService categoryService,
-                                   BrandService brandService, ProductVariantService productVariantService) {
+                                   BrandService brandService, ProductVariantService productVariantService,
+                                   ProductImageService productImageService) {
         this.productService = productService;
         this.categoryService = categoryService;
         this.brandService = brandService;
         this.productVariantService = productVariantService;
+        this.productImageService = productImageService;
     }
 
     @PostMapping
@@ -119,6 +129,27 @@ public class AdminProductController {
             @PathVariable Long id, @PathVariable Long variantId) {
         ProductVariant variant = productVariantService.deactivate(id, variantId);
         return ResponseEntity.ok(ApiResponse.success(ProductVariantResponse.from(variant)));
+    }
+
+    @PostMapping("/{id}/images")
+    public ResponseEntity<ApiResponse<ProductImageResponse>> addImage(
+            @PathVariable Long id, @Valid @RequestBody ProductImageCreateRequest request) {
+        var image = productImageService.addImage(id, request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(ProductImageResponse.from(image)));
+    }
+
+    @DeleteMapping("/{id}/images/{imageId}")
+    public ResponseEntity<Void> removeImage(@PathVariable Long id, @PathVariable Long imageId) {
+        productImageService.removeImage(id, imageId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/{id}/images/reorder")
+    public ResponseEntity<ApiResponse<List<ProductImageResponse>>> reorderImages(
+            @PathVariable Long id, @Valid @RequestBody ProductImageReorderRequest request) {
+        var images = productImageService.reorderImages(id, request);
+        var responses = images.stream().map(ProductImageResponse::from).toList();
+        return ResponseEntity.ok(ApiResponse.success(responses));
     }
 
     // 1 sản phẩm/lần nên tra tên category/brand rời qua getByIdOrThrow là đủ

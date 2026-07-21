@@ -3,6 +3,8 @@ package com.laptophub.catalog;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.laptophub.auth.dto.LoginRequest;
 import com.laptophub.catalog.dto.ProductCreateRequest;
+import com.laptophub.catalog.dto.ProductImageCreateRequest;
+import com.laptophub.catalog.dto.ProductImageReorderRequest;
 import com.laptophub.catalog.dto.ProductUpdateRequest;
 import com.laptophub.catalog.dto.ProductVariantCreateRequest;
 import com.laptophub.catalog.dto.ProductVariantUpdateRequest;
@@ -24,7 +26,9 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.List;
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -328,6 +332,70 @@ class AdminProductControllerTest {
                         .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("ACTIVE"));
+    }
+
+    @Test
+    void addImage_returns201() throws Exception {
+        String adminToken = registerAdminAndLogin("prod-admin-image-add@example.com");
+        long productId = newProductId(adminToken, "image-add");
+
+        mockMvc.perform(post("/admin/products/" + productId + "/images")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new ProductImageCreateRequest("https://example.com/a.png", "Anh", null))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.url").value("https://example.com/a.png"))
+                .andExpect(jsonPath("$.data.sortOrder").value(0));
+    }
+
+    @Test
+    void removeImage_deletesImage() throws Exception {
+        String adminToken = registerAdminAndLogin("prod-admin-image-remove@example.com");
+        long productId = newProductId(adminToken, "image-remove");
+        MvcResult createResult = mockMvc.perform(post("/admin/products/" + productId + "/images")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new ProductImageCreateRequest("https://example.com/a.png", null, null))))
+                .andReturn();
+        long imageId = objectMapper.readTree(createResult.getResponse().getContentAsString())
+                .path("data").path("id").asLong();
+
+        mockMvc.perform(delete("/admin/products/" + productId + "/images/" + imageId)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void reorderImages_appliesNewOrder() throws Exception {
+        String adminToken = registerAdminAndLogin("prod-admin-image-reorder@example.com");
+        long productId = newProductId(adminToken, "image-reorder");
+        MvcResult first = mockMvc.perform(post("/admin/products/" + productId + "/images")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new ProductImageCreateRequest("https://example.com/1.png", null, null))))
+                .andReturn();
+        long firstId = objectMapper.readTree(first.getResponse().getContentAsString()).path("data").path("id").asLong();
+        MvcResult second = mockMvc.perform(post("/admin/products/" + productId + "/images")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new ProductImageCreateRequest("https://example.com/2.png", null, null))))
+                .andReturn();
+        long secondId = objectMapper.readTree(second.getResponse().getContentAsString()).path("data").path("id").asLong();
+
+        mockMvc.perform(put("/admin/products/" + productId + "/images/reorder")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new ProductImageReorderRequest(List.of(secondId, firstId)))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].id").value(secondId))
+                .andExpect(jsonPath("$.data[0].sortOrder").value(0))
+                .andExpect(jsonPath("$.data[1].id").value(firstId))
+                .andExpect(jsonPath("$.data[1].sortOrder").value(1));
     }
 
     @Test
