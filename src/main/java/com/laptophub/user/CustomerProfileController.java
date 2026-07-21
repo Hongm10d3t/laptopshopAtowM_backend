@@ -1,6 +1,8 @@
 package com.laptophub.user;
 
 import com.laptophub.common.ApiResponse;
+import com.laptophub.common.ErrorCode;
+import com.laptophub.common.exception.AppException;
 import com.laptophub.security.CurrentUserProvider;
 import com.laptophub.user.dto.ProfileResponse;
 import com.laptophub.user.dto.UpdateProfileRequest;
@@ -27,10 +29,12 @@ public class CustomerProfileController {
         this.currentUserProvider = currentUserProvider;
     }
 
+    // findById + orElseThrow chỉ là an toàn phòng vệ — userId đến từ access
+    // token đã xác thực nên user luôn tồn tại thật (giống ChangePasswordService).
     @GetMapping
     public ResponseEntity<ApiResponse<ProfileResponse>> getProfile() {
         Long userId = currentUserProvider.getCurrentUser().userId();
-        var user = userService.findById(userId).orElseThrow();
+        var user = userService.findById(userId).orElseThrow(() -> new AppException(ErrorCode.UNAUTHENTICATED));
         return ResponseEntity.ok(ApiResponse.success(ProfileResponse.from(user)));
     }
 
