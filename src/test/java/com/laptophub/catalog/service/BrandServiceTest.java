@@ -13,6 +13,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -106,5 +107,18 @@ class BrandServiceTest {
         assertThatThrownBy(() -> brandService.getByIdOrThrow(99L))
                 .isInstanceOf(AppException.class)
                 .satisfies(ex -> assertThat(((AppException) ex).getErrorCode()).isEqualTo(ErrorCode.RESOURCE_NOT_FOUND));
+    }
+
+    @Test
+    void findNamesByIds_returnsIdToNameMap() {
+        Brand asus = Brand.create("Asus", "asus", null, null);
+        asus.setId(1L);
+        Brand dell = Brand.create("Dell", "dell", null, null);
+        dell.setId(2L);
+        when(brandRepository.findAllById(List.of(1L, 2L))).thenReturn(List.of(asus, dell));
+
+        var names = brandService.findNamesByIds(List.of(1L, 2L));
+
+        assertThat(names).containsEntry(1L, "Asus").containsEntry(2L, "Dell");
     }
 }

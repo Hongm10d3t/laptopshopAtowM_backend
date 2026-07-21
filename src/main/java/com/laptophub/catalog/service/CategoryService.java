@@ -14,6 +14,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 public class CategoryService {
@@ -55,6 +57,13 @@ public class CategoryService {
     // Dùng bởi PublicCategoryController — chỉ danh mục đang hiển thị.
     public List<Category> listActive() {
         return categoryRepository.findByStatusOrderByNameAsc(CategoryStatus.ACTIVE);
+    }
+
+    // Batch fetch tên danh mục theo id — dùng bởi ProductService khi lắp
+    // danh sách sản phẩm, tránh N+1 (1 query duy nhất thay vì 1 query/dòng).
+    public Map<Long, String> findNamesByIds(List<Long> ids) {
+        return categoryRepository.findAllById(ids).stream()
+                .collect(Collectors.toMap(Category::getId, Category::getName));
     }
 
     @Transactional

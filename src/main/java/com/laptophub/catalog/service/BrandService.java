@@ -14,6 +14,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 public class BrandService {
@@ -55,6 +57,13 @@ public class BrandService {
     // Dùng bởi PublicBrandController — chỉ thương hiệu đang hiển thị.
     public List<Brand> listActive() {
         return brandRepository.findByStatusOrderByNameAsc(BrandStatus.ACTIVE);
+    }
+
+    // Batch fetch tên thương hiệu theo id — dùng bởi ProductService khi lắp
+    // danh sách sản phẩm, tránh N+1.
+    public Map<Long, String> findNamesByIds(List<Long> ids) {
+        return brandRepository.findAllById(ids).stream()
+                .collect(Collectors.toMap(Brand::getId, Brand::getName));
     }
 
     @Transactional
