@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.laptophub.auth.dto.LoginRequest;
 import com.laptophub.catalog.dto.ProductCreateRequest;
 import com.laptophub.catalog.dto.ProductUpdateRequest;
+import com.laptophub.catalog.dto.ProductVariantCreateRequest;
+import com.laptophub.catalog.dto.ProductVariantUpdateRequest;
 import com.laptophub.catalog.entity.Brand;
 import com.laptophub.catalog.entity.Category;
 import com.laptophub.catalog.repository.BrandRepository;
@@ -20,6 +22,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.math.BigDecimal;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -86,6 +90,18 @@ class AdminProductControllerTest {
         Category category = Category.create("Cat " + slug, slug, null);
         category.deactivate();
         return categoryRepository.saveAndFlush(category).getId();
+    }
+
+    private long newProductId(String adminToken, String slug) throws Exception {
+        Long categoryId = newActiveCategory("cat-" + slug);
+        Long brandId = newActiveBrand("brand-" + slug);
+        MvcResult result = mockMvc.perform(post("/admin/products")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new ProductCreateRequest(categoryId, brandId, "Product " + slug, slug, null, null))))
+                .andReturn();
+        return objectMapper.readTree(result.getResponse().getContentAsString()).path("data").path("id").asLong();
     }
 
     @Test
@@ -211,6 +227,107 @@ class AdminProductControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.content[0].categoryName").value("Cat cat-prod-list"))
                 .andExpect(jsonPath("$.data.content[0].brandName").value("Brand brand-prod-list"));
+    }
+
+    @Test
+    void addVariant_returns201() throws Exception {
+        String adminToken = registerAdminAndLogin("prod-admin-variant-add@example.com");
+        long productId = newProductId(adminToken, "variant-add");
+
+        mockMvc.perform(post("/admin/products/" + productId + "/variants")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new ProductVariantCreateRequest(
+                                "SKU-ADD-1", "16GB/512GB", new BigDecimal("999.00"), 16, 512, "SSD", "Black"))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.sku").value("SKU-ADD-1"))
+                .andExpect(jsonPath("$.data.status").value("ACTIVE"));
+    }
+
+    @Test
+    void addVariant_duplicateSku_returns409() throws Exception {
+        String adminToken = registerAdminAndLogin("prod-admin-variant-dup@example.com");
+        long productId = newProductId(adminToken, "variant-dup");
+        mockMvc.perform(post("/admin/products/" + productId + "/variants")
+                .header("Authorization", "Bearer " + adminToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new ProductVariantCreateRequest(
+                        "SKU-DUP-1", null, BigDecimal.TEN, null, null, null, null))));
+
+        mockMvc.perform(post("/admin/products/" + productId + "/variants")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new ProductVariantCreateRequest(
+                                "SKU-DUP-1", null, BigDecimal.ONE, null, null, null, null))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.errorCode").value("RESOURCE_CONFLICT"));
+    }
+
+    @Test
+    void updateVariant_changesFields() throws Exception {
+        String adminToken = registerAdminAndLogin("prod-admin-variant-update@example.com");
+        long productId = newProductId(adminToken, "variant-update");
+        MvcResult createResult = mockMvc.perform(post("/admin/products/" + productId + "/variants")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new ProductVariantCreateRequest(
+                                "SKU-UPD-1", null, BigDecimal.TEN, null, null, null, null))))
+                .andReturn();
+        long variantId = objectMapper.readTree(createResult.getResponse().getContentAsString())
+                .path("data").path("id").asLong();
+
+        mockMvc.perform(put("/admin/products/" + productId + "/variants/" + variantId)
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new ProductVariantUpdateRequest(
+                                "8GB/256GB", new BigDecimal("799.00"), 8, 256, "SSD", "Silver"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.variantName").value("8GB/256GB"))
+                .andExpect(jsonPath("$.data.color").value("Silver"));
+    }
+
+    @Test
+    void variantOfAnotherProduct_returns404() throws Exception {
+        String adminToken = registerAdminAndLogin("prod-admin-variant-wrongproduct@example.com");
+        long productId = newProductId(adminToken, "variant-owner");
+        long otherProductId = newProductId(adminToken, "variant-owner-other");
+        MvcResult createResult = mockMvc.perform(post("/admin/products/" + productId + "/variants")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new ProductVariantCreateRequest(
+                                "SKU-OWNER-1", null, BigDecimal.TEN, null, null, null, null))))
+                .andReturn();
+        long variantId = objectMapper.readTree(createResult.getResponse().getContentAsString())
+                .path("data").path("id").asLong();
+
+        mockMvc.perform(post("/admin/products/" + otherProductId + "/variants/" + variantId + "/activate")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errorCode").value("RESOURCE_NOT_FOUND"));
+    }
+
+    @Test
+    void activateAndDeactivateVariant_toggleStatus() throws Exception {
+        String adminToken = registerAdminAndLogin("prod-admin-variant-toggle@example.com");
+        long productId = newProductId(adminToken, "variant-toggle");
+        MvcResult createResult = mockMvc.perform(post("/admin/products/" + productId + "/variants")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new ProductVariantCreateRequest(
+                                "SKU-TOGGLE-1", null, BigDecimal.TEN, null, null, null, null))))
+                .andReturn();
+        long variantId = objectMapper.readTree(createResult.getResponse().getContentAsString())
+                .path("data").path("id").asLong();
+
+        mockMvc.perform(post("/admin/products/" + productId + "/variants/" + variantId + "/deactivate")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("INACTIVE"));
+
+        mockMvc.perform(post("/admin/products/" + productId + "/variants/" + variantId + "/activate")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("ACTIVE"));
     }
 
     @Test
