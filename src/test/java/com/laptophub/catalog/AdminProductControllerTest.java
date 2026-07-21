@@ -5,13 +5,17 @@ import com.laptophub.auth.dto.LoginRequest;
 import com.laptophub.catalog.dto.ProductCreateRequest;
 import com.laptophub.catalog.dto.ProductImageCreateRequest;
 import com.laptophub.catalog.dto.ProductImageReorderRequest;
+import com.laptophub.catalog.dto.ProductSpecValuesUpsertRequest;
+import com.laptophub.catalog.dto.ProductSpecValuesUpsertRequest.SpecValueItem;
 import com.laptophub.catalog.dto.ProductUpdateRequest;
 import com.laptophub.catalog.dto.ProductVariantCreateRequest;
 import com.laptophub.catalog.dto.ProductVariantUpdateRequest;
 import com.laptophub.catalog.entity.Brand;
 import com.laptophub.catalog.entity.Category;
+import com.laptophub.catalog.entity.SpecificationDefinition;
 import com.laptophub.catalog.repository.BrandRepository;
 import com.laptophub.catalog.repository.CategoryRepository;
+import com.laptophub.catalog.repository.SpecificationDefinitionRepository;
 import com.laptophub.user.entity.User;
 import com.laptophub.user.entity.UserRole;
 import com.laptophub.user.repository.UserRepository;
@@ -56,6 +60,9 @@ class AdminProductControllerTest {
     private BrandRepository brandRepository;
 
     @Autowired
+    private SpecificationDefinitionRepository specificationDefinitionRepository;
+
+    @Autowired
     private PasswordEncoder passwordEncoder;
 
     private String registerAdminAndLogin(String email) throws Exception {
@@ -94,6 +101,14 @@ class AdminProductControllerTest {
         Category category = Category.create("Cat " + slug, slug, null);
         category.deactivate();
         return categoryRepository.saveAndFlush(category).getId();
+    }
+
+    private Long specIdByCode(String code) {
+        return specificationDefinitionRepository.findAllByOrderByDisplayOrderAsc().stream()
+                .filter(spec -> spec.getCode().equals(code))
+                .findFirst()
+                .map(SpecificationDefinition::getId)
+                .orElseThrow();
     }
 
     private long newProductId(String adminToken, String slug) throws Exception {
@@ -396,6 +411,59 @@ class AdminProductControllerTest {
                 .andExpect(jsonPath("$.data[0].sortOrder").value(0))
                 .andExpect(jsonPath("$.data[1].id").value(firstId))
                 .andExpect(jsonPath("$.data[1].sortOrder").value(1));
+    }
+
+    @Test
+    void upsertSpecifications_createsValues() throws Exception {
+        String adminToken = registerAdminAndLogin("prod-admin-spec-create@example.com");
+        long productId = newProductId(adminToken, "spec-create");
+        Long cpuSpecId = specIdByCode("cpu");
+
+        mockMvc.perform(put("/admin/products/" + productId + "/specifications")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new ProductSpecValuesUpsertRequest(
+                                List.of(new SpecValueItem(cpuSpecId, "Intel Core i7-13700H"))))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].code").value("cpu"))
+                .andExpect(jsonPath("$.data[0].value").value("Intel Core i7-13700H"));
+    }
+
+    @Test
+    void upsertSpecifications_replacesEntireSet_onSecondCall() throws Exception {
+        String adminToken = registerAdminAndLogin("prod-admin-spec-replace@example.com");
+        long productId = newProductId(adminToken, "spec-replace");
+        Long cpuSpecId = specIdByCode("cpu");
+        Long gpuSpecId = specIdByCode("gpu");
+        mockMvc.perform(put("/admin/products/" + productId + "/specifications")
+                .header("Authorization", "Bearer " + adminToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new ProductSpecValuesUpsertRequest(
+                        List.of(new SpecValueItem(cpuSpecId, "Intel i5"), new SpecValueItem(gpuSpecId, "RTX 3050"))))));
+
+        mockMvc.perform(put("/admin/products/" + productId + "/specifications")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new ProductSpecValuesUpsertRequest(
+                                List.of(new SpecValueItem(cpuSpecId, "Intel i7"))))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].code").value("cpu"))
+                .andExpect(jsonPath("$.data[0].value").value("Intel i7"));
+    }
+
+    @Test
+    void upsertSpecifications_unknownSpecificationId_returns404() throws Exception {
+        String adminToken = registerAdminAndLogin("prod-admin-spec-missing@example.com");
+        long productId = newProductId(adminToken, "spec-missing");
+
+        mockMvc.perform(put("/admin/products/" + productId + "/specifications")
+                        .header("Authorization", "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new ProductSpecValuesUpsertRequest(
+                                List.of(new SpecValueItem(999999L, "value"))))))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errorCode").value("RESOURCE_NOT_FOUND"));
     }
 
     @Test

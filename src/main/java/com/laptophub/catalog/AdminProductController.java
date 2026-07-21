@@ -5,6 +5,8 @@ import com.laptophub.catalog.dto.ProductImageCreateRequest;
 import com.laptophub.catalog.dto.ProductImageReorderRequest;
 import com.laptophub.catalog.dto.ProductImageResponse;
 import com.laptophub.catalog.dto.ProductResponse;
+import com.laptophub.catalog.dto.ProductSpecValueResponse;
+import com.laptophub.catalog.dto.ProductSpecValuesUpsertRequest;
 import com.laptophub.catalog.dto.ProductSummaryResponse;
 import com.laptophub.catalog.dto.ProductUpdateRequest;
 import com.laptophub.catalog.dto.ProductVariantCreateRequest;
@@ -17,6 +19,7 @@ import com.laptophub.catalog.service.BrandService;
 import com.laptophub.catalog.service.CategoryService;
 import com.laptophub.catalog.service.ProductImageService;
 import com.laptophub.catalog.service.ProductService;
+import com.laptophub.catalog.service.ProductSpecValueService;
 import com.laptophub.catalog.service.ProductVariantService;
 import com.laptophub.common.ApiResponse;
 import com.laptophub.common.dto.PageResponse;
@@ -37,8 +40,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 // Quyền truy cập (hasRole('ADMIN') cho /admin/**) đã khai ở SecurityConfig.
-// CRUD lõi Product + endpoint variant/ảnh ở gói này — endpoint thông số kỹ
-// thuật sẽ mở rộng thêm ở gói sau, cùng controller này.
+// CRUD lõi Product + endpoint variant/ảnh/thông số kỹ thuật ở gói này.
 @RestController
 @RequestMapping("/admin/products")
 public class AdminProductController {
@@ -48,15 +50,18 @@ public class AdminProductController {
     private final BrandService brandService;
     private final ProductVariantService productVariantService;
     private final ProductImageService productImageService;
+    private final ProductSpecValueService productSpecValueService;
 
     public AdminProductController(ProductService productService, CategoryService categoryService,
                                    BrandService brandService, ProductVariantService productVariantService,
-                                   ProductImageService productImageService) {
+                                   ProductImageService productImageService,
+                                   ProductSpecValueService productSpecValueService) {
         this.productService = productService;
         this.categoryService = categoryService;
         this.brandService = brandService;
         this.productVariantService = productVariantService;
         this.productImageService = productImageService;
+        this.productSpecValueService = productSpecValueService;
     }
 
     @PostMapping
@@ -149,6 +154,13 @@ public class AdminProductController {
             @PathVariable Long id, @Valid @RequestBody ProductImageReorderRequest request) {
         var images = productImageService.reorderImages(id, request);
         var responses = images.stream().map(ProductImageResponse::from).toList();
+        return ResponseEntity.ok(ApiResponse.success(responses));
+    }
+
+    @PutMapping("/{id}/specifications")
+    public ResponseEntity<ApiResponse<List<ProductSpecValueResponse>>> upsertSpecifications(
+            @PathVariable Long id, @Valid @RequestBody ProductSpecValuesUpsertRequest request) {
+        var responses = productSpecValueService.upsertValues(id, request);
         return ResponseEntity.ok(ApiResponse.success(responses));
     }
 
