@@ -48,6 +48,14 @@ public class ProductVariantService {
                 .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND));
     }
 
+    // Dùng bởi module khác (vd inventory) cần validate variant tồn tại mà
+    // không có productId trong tay — khác getOwnedOrThrow vốn gắn với route
+    // lồng /products/{id}/variants/{variantId}.
+    public ProductVariant getByIdOrThrow(Long variantId) {
+        return productVariantRepository.findById(variantId)
+                .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND));
+    }
+
     public List<ProductVariant> listByProduct(Long productId) {
         return productVariantRepository.findByProductId(productId);
     }

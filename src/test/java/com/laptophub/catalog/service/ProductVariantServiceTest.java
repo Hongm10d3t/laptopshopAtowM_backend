@@ -97,6 +97,22 @@ class ProductVariantServiceTest {
     }
 
     @Test
+    void getByIdOrThrow_returnsVariant_whenExists() {
+        ProductVariant variant = ProductVariant.create(1L, "SKU-001", null, BigDecimal.TEN, null, null, null, null);
+        when(productVariantRepository.findById(5L)).thenReturn(Optional.of(variant));
+
+        assertThat(productVariantService.getByIdOrThrow(5L)).isSameAs(variant);
+    }
+
+    @Test
+    void getByIdOrThrow_throwsResourceNotFound_whenMissing() {
+        when(productVariantRepository.findById(99L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> productVariantService.getByIdOrThrow(99L)).isInstanceOf(AppException.class)
+                .satisfies(ex -> assertThat(((AppException) ex).getErrorCode()).isEqualTo(ErrorCode.RESOURCE_NOT_FOUND));
+    }
+
+    @Test
     void activate_and_deactivate_toggleStatus() {
         ProductVariant variant = ProductVariant.create(1L, "SKU-001", null, BigDecimal.TEN, null, null, null, null);
         when(productVariantRepository.findByIdAndProductId(5L, 1L)).thenReturn(Optional.of(variant));
