@@ -67,6 +67,9 @@ public class StockReceiptService {
     @Transactional
     public StockReceipt confirm(Long receiptId, Long confirmedByUserId) {
         StockReceipt receipt = getByIdOrThrow(receiptId);
+        if (receipt.getStatus() != StockReceiptStatus.DRAFT) {
+            throw new AppException(ErrorCode.INVALID_STOCK_RECEIPT_STATUS);
+        }
         List<StockReceiptItem> items = stockReceiptItemRepository.findByStockReceiptId(receiptId);
         if (items.isEmpty()) {
             throw new AppException(ErrorCode.VALIDATION_ERROR, "Phiếu nhập chưa có dòng hàng nào");
@@ -76,8 +79,14 @@ public class StockReceiptService {
             inventoryService.receiveStock(item.getProductVariantId(), item.getQuantity(), "STOCK_RECEIPT", receiptId,
                     confirmedByUserId);
         }
-        receipt.confirm(confirmedByUserId, clock.instant());
-        return receipt;
+        // InventoryBalanceRepository dùng @Modifying(clearAutomatically = true) —
+        // xoá TOÀN BỘ persistence context (không riêng InventoryBalance), khiến
+        // `receipt` ở trên bị detach. Phải load lại entity quản lý mới trước khi
+        // mutate, nếu không thay đổi status chỉ nằm trên object Java, không bao
+        // giờ được flush xuống DB.
+        StockReceipt managedReceipt = getByIdOrThrow(receiptId);
+        managedReceipt.confirm(confirmedByUserId, clock.instant());
+        return managedReceipt;
     }
 
     @Transactional

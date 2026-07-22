@@ -173,8 +173,6 @@ class StockReceiptServiceTest {
         StockReceipt confirmed = StockReceipt.create("PN-006", null, 1L);
         confirmed.confirm(1L, Instant.now());
         when(stockReceiptRepository.findById(6L)).thenReturn(Optional.of(confirmed));
-        when(stockReceiptItemRepository.findByStockReceiptId(6L))
-                .thenReturn(List.of(StockReceiptItem.create(6L, 1L, 5)));
 
         assertThatThrownBy(() -> stockReceiptService.confirm(6L, 1L)).isInstanceOf(AppException.class)
                 .satisfies(ex -> assertThat(((AppException) ex).getErrorCode())
