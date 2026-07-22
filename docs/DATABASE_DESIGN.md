@@ -46,45 +46,70 @@ product_spec_values   (tùy thiết kế)
 
 ### Inventory
 
-MVP dùng một kho chính nhưng vẫn có thể tạo bảng kho để dễ mở rộng:
+Giai đoạn 4 (Inventory Lite) đã triển khai, lệch so với gợi ý ban đầu ở 2
+điểm — quyết định có chủ đích, không phải thiếu sót:
+
+- **Không có bảng `warehouses`** — MVP chỉ 1 kho ngầm định, `inventory_balances`
+  khoá 1-1 theo `product_variant_id` (UNIQUE), không có `warehouse_id`. Thêm
+  multi-warehouse sau là additive migration (thêm cột `warehouse_id`).
+- **Không có bảng `inventory_reservations` riêng** — `reserved_quantity`
+  (aggregate trên `inventory_balances`) cộng `inventory_movements` (log
+  `RESERVE`/`RELEASE` với `reference_type`/`reference_id`) là đủ để chống bán
+  vượt tồn và truy vết. Chưa có `order_items` (Giai đoạn 5/6) để 1 dòng
+  reservation trỏ vào nên hoãn tới khi có nhu cầu cụ thể (TTL giữ hàng,
+  release từng phần theo đơn).
 
 ```text
-warehouses
 inventory_balances
 stock_receipts
 stock_receipt_items
 inventory_movements
-inventory_reservations
 ```
 
-`inventory_balances` tối thiểu:
+`inventory_balances`:
 
 ```text
-warehouse_id
-product_variant_id
+product_variant_id   (UNIQUE)
 on_hand_quantity
 reserved_quantity
-version
 ```
 
-Ràng buộc gợi ý:
+Ràng buộc:
 
 ```text
-UNIQUE(warehouse_id, product_variant_id)
+UNIQUE(product_variant_id)
 on_hand_quantity >= 0
 reserved_quantity >= 0
 reserved_quantity <= on_hand_quantity
 ```
 
-Tồn khả dụng được tính:
+Tồn khả dụng được tính (derived, không lưu cột):
 
 ```text
 available = on_hand - reserved
 ```
 
-`inventory_movements` lưu lịch sử như `RECEIPT`, `RESERVE`, `RELEASE`, `SHIPMENT`, `RETURN`, `ADJUSTMENT_IN`, `ADJUSTMENT_OUT`.
+**Không có cột `version`** — chống bán vượt tồn dùng update có điều kiện ở
+tầng repository (`UPDATE ... WHERE <điều kiện đủ tồn>`, kiểm tra số dòng bị
+ảnh hưởng) thay vì optimistic locking.
 
-Serial, hàng lỗi và nhiều kho có thể thêm sau mà không bắt buộc trong giai đoạn đầu.
+`inventory_movements` lưu lịch sử immutable, append-only: `RECEIPT`,
+`RESERVE`, `RELEASE`, `SHIPMENT`, `RETURN`, `ADJUSTMENT_IN`, `ADJUSTMENT_OUT`
+— kèm `reference_type`/`reference_id` (nullable, không FK — tham chiếu
+polymorphic tới `stock_receipts` hoặc, ở giai đoạn sau, `order_items`) và
+snapshot `on_hand_after`/`reserved_after` sau khi áp dụng.
+
+`stock_receipts` có state machine `DRAFT` → `CONFIRMED`/`CANCELLED`: chỉ
+`confirm` mới thực sự tăng `on_hand` (gọi `InventoryService.receiveStock` cho
+từng dòng `stock_receipt_items`) và ghi movement; `DRAFT` bị hủy không ảnh
+hưởng tồn.
+
+`InventoryService.reserve/release/fulfill/receiveReturn` đã có sẵn (dùng
+cùng cơ chế update có điều kiện) nhưng **chưa có endpoint HTTP** — Order
+module (Giai đoạn 5/6) sẽ gọi trực tiếp qua service bean khi `order_items`
+tồn tại.
+
+Serial, hàng lỗi và nhiều kho vẫn là phần mở rộng, chưa triển khai.
 
 ### Cart
 
@@ -174,9 +199,9 @@ Brand      1 --- N Product
 Product    1 --- N ProductVariant
 Product    1 --- N ProductImage
 
-Warehouse  1 --- N InventoryBalance
-Variant    1 --- N InventoryBalance
-OrderItem  1 --- N InventoryReservation
+ProductVariant  1 --- 1 InventoryBalance
+ProductVariant  1 --- N InventoryMovement
+StockReceipt    1 --- N StockReceiptItem
 
 Cart       1 --- N CartItem
 Order      1 --- N OrderItem
