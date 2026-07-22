@@ -18,6 +18,8 @@ public enum ErrorCode {
     EMAIL_ALREADY_EXISTS(HttpStatus.CONFLICT, "Email đã được đăng ký"),
     INVALID_CREDENTIALS(HttpStatus.UNAUTHORIZED, "Email hoặc mật khẩu không đúng"),
     ACCOUNT_BLOCKED(HttpStatus.FORBIDDEN, "Tài khoản đã bị khóa"),
+    INSUFFICIENT_STOCK(HttpStatus.CONFLICT, "Không đủ tồn kho khả dụng"),
+    INVALID_STOCK_RECEIPT_STATUS(HttpStatus.BAD_REQUEST, "Trạng thái phiếu nhập không hợp lệ cho thao tác này"),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "Lỗi hệ thống");
 
     private final HttpStatus httpStatus;
