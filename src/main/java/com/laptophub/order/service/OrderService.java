@@ -1,0 +1,103 @@
+package com.laptophub.order.service;
+
+import com.laptophub.cart.entity.CartItem;
+import com.laptophub.cart.service.CartService;
+import com.laptophub.catalog.entity.Product;
+import com.laptophub.catalog.entity.ProductStatus;
+import com.laptophub.catalog.entity.ProductVariant;
+import com.laptophub.catalog.entity.ProductVariantStatus;
+import com.laptophub.catalog.service.ProductService;
+import com.laptophub.catalog.service.ProductVariantService;
+import com.laptophub.common.ErrorCode;
+import com.laptophub.common.exception.AppException;
+import com.laptophub.inventory.service.InventoryService;
+import com.laptophub.order.dto.CheckoutRequest;
+import com.laptophub.order.entity.Order;
+import com.laptophub.order.entity.OrderItem;
+import com.laptophub.order.repository.OrderItemRepository;
+import com.laptophub.order.repository.OrderRepository;
+import com.laptophub.user.entity.Address;
+import com.laptophub.user.service.AddressService;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.math.BigDecimal;
+import java.util.List;
+
+@Service
+public class OrderService {
+
+    private final OrderRepository orderRepository;
+    private final OrderItemRepository orderItemRepository;
+    private final CartService cartService;
+    private final AddressService addressService;
+    private final ProductVariantService productVariantService;
+    private final ProductService productService;
+    private final InventoryService inventoryService;
+
+    public OrderService(OrderRepository orderRepository, OrderItemRepository orderItemRepository,
+            CartService cartService, AddressService addressService, ProductVariantService productVariantService,
+            ProductService productService, InventoryService inventoryService) {
+        this.orderRepository = orderRepository;
+        this.orderItemRepository = orderItemRepository;
+        this.cartService = cartService;
+        this.addressService = addressService;
+        this.productVariantService = productVariantService;
+        this.productService = productService;
+        this.inventoryService = inventoryService;
+    }
+
+    // Tạo đơn + reserve tồn trong cùng 1 transaction (DATABASE_DESIGN.md §4).
+    // lockItemsForCheckout khoá pessimistic trên Cart ngay từ đầu, serialize
+    // các request checkout đồng thời của cùng user — tránh double-order khi
+    // double-click/network retry (API_CONVENTION.md §8).
+    @Transactional
+    public CheckoutResult checkout(Long userId, CheckoutRequest request) {
+        List<CartItem> cartItems = cartService.lockItemsForCheckout(userId);
+        if (cartItems.isEmpty()) {
+            throw new AppException(ErrorCode.VALIDATION_ERROR, "Giỏ hàng trống");
+        }
+
+        Address address = addressService.getOwned(userId, request.addressId());
+
+        List<CheckoutLine> lines = cartItems.stream().map(this::resolveLine).toList();
+
+        BigDecimal totalAmount = lines.stream()
+                .map(line -> line.variant().getPrice().multiply(BigDecimal.valueOf(line.cartItem().getQuantity())))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        Order order = orderRepository.saveAndFlush(Order.create(userId, totalAmount, request.note(),
+                address.getRecipientName(), address.getPhone(), address.getProvince(), address.getDistrict(),
+                address.getWard(), address.getStreetAddress()));
+
+        List<OrderItem> items = orderItemRepository.saveAllAndFlush(lines.stream()
+                .map(line -> OrderItem.create(order.getId(), line.variant().getId(), line.product().getName(),
+                        line.variant().getVariantName(), line.variant().getSku(), line.variant().getPrice(),
+                        line.cartItem().getQuantity()))
+                .toList());
+
+        // InventoryBalanceRepository dùng @Modifying(clearAutomatically = true) —
+        // mỗi lần reserve() xoá persistence context, Order/OrderItem phía trên bị
+        // detach. Không sao vì không cần mutate lại chúng sau bước này.
+        for (OrderItem item : items) {
+            inventoryService.reserve(item.getProductVariantId(), item.getQuantity(), "ORDER_ITEM", item.getId());
+        }
+
+        cartService.clear(userId);
+
+        return new CheckoutResult(order, items);
+    }
+
+    private CheckoutLine resolveLine(CartItem cartItem) {
+        ProductVariant variant = productVariantService.getByIdOrThrow(cartItem.getProductVariantId());
+        Product product = productService.getByIdOrThrow(variant.getProductId());
+        if (variant.getStatus() != ProductVariantStatus.ACTIVE || product.getStatus() != ProductStatus.ACTIVE) {
+            throw new AppException(ErrorCode.PRODUCT_VARIANT_UNAVAILABLE,
+                    "Sản phẩm \"" + product.getName() + "\" hiện không khả dụng để đặt hàng");
+        }
+        return new CheckoutLine(cartItem, variant, product);
+    }
+
+    private record CheckoutLine(CartItem cartItem, ProductVariant variant, Product product) {
+    }
+}

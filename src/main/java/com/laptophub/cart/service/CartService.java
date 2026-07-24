@@ -71,6 +71,19 @@ public class CartService {
         cartRepository.findByUserId(userId).ifPresent(cart -> cartItemRepository.deleteByCartId(cart.getId()));
     }
 
+    // Chỉ dùng bởi OrderService.checkout: khoá pessimistic (SELECT ... FOR
+    // UPDATE) trên row Cart, serialize các request checkout đồng thời của
+    // cùng user — request thứ 2 phải đợi request thứ 1 commit (giỏ đã bị
+    // clear) rồi mới đọc, tránh double-order/double-reserve. Tham gia cùng
+    // transaction của caller (OrderService.checkout đã @Transactional) nên
+    // khoá được giữ tới khi transaction đó kết thúc, không phải tới khi
+    // method này return.
+    public List<CartItem> lockItemsForCheckout(Long userId) {
+        return cartRepository.findByUserIdForUpdate(userId)
+                .map(cart -> cartItemRepository.findByCartId(cart.getId()))
+                .orElseGet(List::of);
+    }
+
     // Không phân biệt "chưa có giỏ" và "item không thuộc giỏ của user này" —
     // cả 2 đều RESOURCE_NOT_FOUND, giống AddressService.getOwned.
     private CartItem getOwnedItem(Long userId, Long itemId) {
