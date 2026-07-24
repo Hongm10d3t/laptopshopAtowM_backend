@@ -21,6 +21,8 @@ public enum ErrorCode {
     INSUFFICIENT_STOCK(HttpStatus.CONFLICT, "Không đủ tồn kho khả dụng"),
     INVALID_STOCK_RECEIPT_STATUS(HttpStatus.BAD_REQUEST, "Trạng thái phiếu nhập không hợp lệ cho thao tác này"),
     PRODUCT_VARIANT_UNAVAILABLE(HttpStatus.BAD_REQUEST, "Sản phẩm hiện không khả dụng để đặt hàng"),
+    INVALID_ORDER_STATUS(HttpStatus.BAD_REQUEST, "Trạng thái đơn hàng không hợp lệ cho thao tác này"),
+    INVALID_RETURN_REQUEST_STATUS(HttpStatus.BAD_REQUEST, "Trạng thái yêu cầu trả hàng không hợp lệ cho thao tác này"),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "Lỗi hệ thống");
 
     private final HttpStatus httpStatus;

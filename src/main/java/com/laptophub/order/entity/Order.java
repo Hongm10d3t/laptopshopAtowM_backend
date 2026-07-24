@@ -1,6 +1,8 @@
 package com.laptophub.order.entity;
 
+import com.laptophub.common.ErrorCode;
 import com.laptophub.common.entity.BaseEntity;
+import com.laptophub.common.exception.AppException;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -11,7 +13,9 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
+import java.util.EnumSet;
 import java.util.Objects;
+import java.util.Set;
 
 // userId là FK dạng Long phẳng, đúng tiền lệ chung của dự án. recipientName..
 // streetAddress là snapshot địa chỉ giao hàng tại thời điểm đặt đơn (không FK
@@ -78,5 +82,59 @@ public class Order extends BaseEntity {
     public static Order create(Long userId, BigDecimal totalAmount, String note, String recipientName, String phone,
                                 String province, String district, String ward, String streetAddress) {
         return new Order(userId, totalAmount, note, recipientName, phone, province, district, ward, streetAddress);
+    }
+
+    // Tập trạng thái được phép hủy là tập RỘNG NHẤT (năng lực Admin) —
+    // OrderService.cancelByCustomer tự kiểm tra phạm vi hẹp hơn (chỉ
+    // PENDING/CONFIRMED) TRƯỚC khi gọi cancel(), entity không phân biệt ai gọi.
+    private static final Set<OrderStatus> CANCELLABLE_STATUSES =
+            EnumSet.of(OrderStatus.PENDING, OrderStatus.CONFIRMED, OrderStatus.PREPARING);
+
+    public void confirm() {
+        requireStatus(OrderStatus.PENDING);
+        this.status = OrderStatus.CONFIRMED;
+    }
+
+    public void prepare() {
+        requireStatus(OrderStatus.CONFIRMED);
+        this.status = OrderStatus.PREPARING;
+    }
+
+    public void ship() {
+        requireStatus(OrderStatus.PREPARING);
+        this.status = OrderStatus.SHIPPING;
+    }
+
+    public void deliver() {
+        requireStatus(OrderStatus.SHIPPING);
+        this.status = OrderStatus.DELIVERED;
+    }
+
+    public void cancel() {
+        if (!CANCELLABLE_STATUSES.contains(this.status)) {
+            throw new AppException(ErrorCode.INVALID_ORDER_STATUS);
+        }
+        this.status = OrderStatus.CANCELLED;
+    }
+
+    public void requestReturn() {
+        requireStatus(OrderStatus.DELIVERED);
+        this.status = OrderStatus.RETURN_REQUESTED;
+    }
+
+    public void approveReturn() {
+        requireStatus(OrderStatus.RETURN_REQUESTED);
+        this.status = OrderStatus.RETURNED;
+    }
+
+    public void rejectReturn() {
+        requireStatus(OrderStatus.RETURN_REQUESTED);
+        this.status = OrderStatus.DELIVERED;
+    }
+
+    private void requireStatus(OrderStatus expected) {
+        if (this.status != expected) {
+            throw new AppException(ErrorCode.INVALID_ORDER_STATUS);
+        }
     }
 }
