@@ -14,8 +14,11 @@ import com.laptophub.inventory.service.InventoryService;
 import com.laptophub.order.dto.CheckoutRequest;
 import com.laptophub.order.entity.Order;
 import com.laptophub.order.entity.OrderItem;
+import com.laptophub.order.entity.OrderStatus;
+import com.laptophub.order.entity.OrderStatusHistory;
 import com.laptophub.order.repository.OrderItemRepository;
 import com.laptophub.order.repository.OrderRepository;
+import com.laptophub.order.repository.OrderStatusHistoryRepository;
 import com.laptophub.user.entity.Address;
 import com.laptophub.user.service.AddressService;
 import org.springframework.data.domain.Page;
@@ -31,6 +34,7 @@ public class OrderService {
 
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
+    private final OrderStatusHistoryRepository orderStatusHistoryRepository;
     private final CartService cartService;
     private final AddressService addressService;
     private final ProductVariantService productVariantService;
@@ -38,10 +42,12 @@ public class OrderService {
     private final InventoryService inventoryService;
 
     public OrderService(OrderRepository orderRepository, OrderItemRepository orderItemRepository,
-            CartService cartService, AddressService addressService, ProductVariantService productVariantService,
+            OrderStatusHistoryRepository orderStatusHistoryRepository, CartService cartService,
+            AddressService addressService, ProductVariantService productVariantService,
             ProductService productService, InventoryService inventoryService) {
         this.orderRepository = orderRepository;
         this.orderItemRepository = orderItemRepository;
+        this.orderStatusHistoryRepository = orderStatusHistoryRepository;
         this.cartService = cartService;
         this.addressService = addressService;
         this.productVariantService = productVariantService;
@@ -103,6 +109,49 @@ public class OrderService {
 
     public List<OrderItem> getItems(Long orderId) {
         return orderItemRepository.findByOrderId(orderId);
+    }
+
+    // Dùng cho Admin xem/thao tác bất kỳ đơn nào, không giới hạn theo chủ đơn
+    // (khác getOwnedOrThrow).
+    public Order getByIdOrThrow(Long orderId) {
+        return orderRepository.findById(orderId).orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND));
+    }
+
+    public Page<Order> listAdmin(OrderStatus status, Pageable pageable) {
+        return orderRepository.search(status, pageable);
+    }
+
+    // confirm/prepare/deliver không đụng inventory nên không có rủi ro
+    // clearAutomatically — không cần load lại Order sau khi mutate.
+    @Transactional
+    public Order confirm(Long orderId, Long actingUserId) {
+        Order order = getByIdOrThrow(orderId);
+        OrderStatus previous = order.getStatus();
+        order.confirm();
+        recordHistory(orderId, previous, order.getStatus(), actingUserId, null);
+        return order;
+    }
+
+    @Transactional
+    public Order prepare(Long orderId, Long actingUserId) {
+        Order order = getByIdOrThrow(orderId);
+        OrderStatus previous = order.getStatus();
+        order.prepare();
+        recordHistory(orderId, previous, order.getStatus(), actingUserId, null);
+        return order;
+    }
+
+    @Transactional
+    public Order deliver(Long orderId, Long actingUserId) {
+        Order order = getByIdOrThrow(orderId);
+        OrderStatus previous = order.getStatus();
+        order.deliver();
+        recordHistory(orderId, previous, order.getStatus(), actingUserId, null);
+        return order;
+    }
+
+    private void recordHistory(Long orderId, OrderStatus from, OrderStatus to, Long changedByUserId, String note) {
+        orderStatusHistoryRepository.save(OrderStatusHistory.create(orderId, from, to, changedByUserId, note));
     }
 
     private CheckoutLine resolveLine(CartItem cartItem) {

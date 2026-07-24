@@ -12,18 +12,23 @@ import com.laptophub.inventory.service.InventoryService;
 import com.laptophub.order.dto.CheckoutRequest;
 import com.laptophub.order.entity.Order;
 import com.laptophub.order.entity.OrderItem;
+import com.laptophub.order.entity.OrderStatus;
+import com.laptophub.order.entity.OrderStatusHistory;
 import com.laptophub.order.repository.OrderItemRepository;
 import com.laptophub.order.repository.OrderRepository;
+import com.laptophub.order.repository.OrderStatusHistoryRepository;
 import com.laptophub.user.entity.Address;
 import com.laptophub.user.service.AddressService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -49,6 +54,9 @@ class OrderServiceTest {
     private OrderItemRepository orderItemRepository;
 
     @Mock
+    private OrderStatusHistoryRepository orderStatusHistoryRepository;
+
+    @Mock
     private CartService cartService;
 
     @Mock
@@ -67,8 +75,8 @@ class OrderServiceTest {
 
     @BeforeEach
     void setUp() {
-        orderService = new OrderService(orderRepository, orderItemRepository, cartService, addressService,
-                productVariantService, productService, inventoryService);
+        orderService = new OrderService(orderRepository, orderItemRepository, orderStatusHistoryRepository,
+                cartService, addressService, productVariantService, productService, inventoryService);
         lenient().when(addressService.getOwned(USER_ID, ADDRESS_ID)).thenReturn(
                 Address.create(USER_ID, "Nguyen Van A", "0900000000", "HN", "CG", "DV", "123 Duong ABC", true));
         lenient().when(orderRepository.saveAndFlush(any(Order.class))).thenAnswer(invocation -> {
@@ -185,5 +193,108 @@ class OrderServiceTest {
                 .isInstanceOf(AppException.class)
                 .satisfies(ex -> assertThat(((AppException) ex).getErrorCode()).isEqualTo(ErrorCode.INSUFFICIENT_STOCK));
         verify(cartService, never()).clear(any());
+    }
+
+    private Order orderWithStatus(Long id, OrderStatus status) {
+        Order order = Order.create(USER_ID, BigDecimal.TEN, null, "A", "0900000000", "HN", "CG", "DV", "123");
+        order.setId(id);
+        if (status == OrderStatus.CONFIRMED || status == OrderStatus.PREPARING || status == OrderStatus.SHIPPING
+                || status == OrderStatus.DELIVERED) {
+            order.confirm();
+        }
+        if (status == OrderStatus.PREPARING || status == OrderStatus.SHIPPING || status == OrderStatus.DELIVERED) {
+            order.prepare();
+        }
+        if (status == OrderStatus.SHIPPING || status == OrderStatus.DELIVERED) {
+            order.ship();
+        }
+        if (status == OrderStatus.DELIVERED) {
+            order.deliver();
+        }
+        return order;
+    }
+
+    @Test
+    void getByIdOrThrow_throwsResourceNotFound_whenMissing() {
+        when(orderRepository.findById(999L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> orderService.getByIdOrThrow(999L))
+                .isInstanceOf(AppException.class)
+                .satisfies(ex -> assertThat(((AppException) ex).getErrorCode()).isEqualTo(ErrorCode.RESOURCE_NOT_FOUND));
+    }
+
+    @Test
+    void listAdmin_delegatesToRepositorySearch() {
+        orderService.listAdmin(OrderStatus.PENDING, null);
+
+        verify(orderRepository).search(OrderStatus.PENDING, null);
+    }
+
+    @Test
+    void confirm_transitionsOrder_andRecordsHistory() {
+        Order order = orderWithStatus(100L, OrderStatus.PENDING);
+        when(orderRepository.findById(100L)).thenReturn(Optional.of(order));
+
+        Order result = orderService.confirm(100L, 5L);
+
+        assertThat(result.getStatus()).isEqualTo(OrderStatus.CONFIRMED);
+        ArgumentCaptor<OrderStatusHistory> captor = ArgumentCaptor.forClass(OrderStatusHistory.class);
+        verify(orderStatusHistoryRepository).save(captor.capture());
+        assertThat(captor.getValue().getFromStatus()).isEqualTo(OrderStatus.PENDING);
+        assertThat(captor.getValue().getToStatus()).isEqualTo(OrderStatus.CONFIRMED);
+        assertThat(captor.getValue().getChangedByUserId()).isEqualTo(5L);
+    }
+
+    @Test
+    void confirm_propagatesInvalidOrderStatus_whenNotPending() {
+        Order order = orderWithStatus(100L, OrderStatus.CONFIRMED);
+        when(orderRepository.findById(100L)).thenReturn(Optional.of(order));
+
+        assertThatThrownBy(() -> orderService.confirm(100L, 5L))
+                .isInstanceOf(AppException.class)
+                .satisfies(ex -> assertThat(((AppException) ex).getErrorCode()).isEqualTo(ErrorCode.INVALID_ORDER_STATUS));
+        verify(orderStatusHistoryRepository, never()).save(any());
+    }
+
+    @Test
+    void prepare_transitionsOrder_andRecordsHistory() {
+        Order order = orderWithStatus(100L, OrderStatus.CONFIRMED);
+        when(orderRepository.findById(100L)).thenReturn(Optional.of(order));
+
+        Order result = orderService.prepare(100L, 5L);
+
+        assertThat(result.getStatus()).isEqualTo(OrderStatus.PREPARING);
+        verify(orderStatusHistoryRepository).save(any(OrderStatusHistory.class));
+    }
+
+    @Test
+    void prepare_propagatesInvalidOrderStatus_whenNotConfirmed() {
+        Order order = orderWithStatus(100L, OrderStatus.PENDING);
+        when(orderRepository.findById(100L)).thenReturn(Optional.of(order));
+
+        assertThatThrownBy(() -> orderService.prepare(100L, 5L))
+                .isInstanceOf(AppException.class)
+                .satisfies(ex -> assertThat(((AppException) ex).getErrorCode()).isEqualTo(ErrorCode.INVALID_ORDER_STATUS));
+    }
+
+    @Test
+    void deliver_transitionsOrder_andRecordsHistory() {
+        Order order = orderWithStatus(100L, OrderStatus.SHIPPING);
+        when(orderRepository.findById(100L)).thenReturn(Optional.of(order));
+
+        Order result = orderService.deliver(100L, 5L);
+
+        assertThat(result.getStatus()).isEqualTo(OrderStatus.DELIVERED);
+        verify(orderStatusHistoryRepository).save(any(OrderStatusHistory.class));
+    }
+
+    @Test
+    void deliver_propagatesInvalidOrderStatus_whenNotShipping() {
+        Order order = orderWithStatus(100L, OrderStatus.PREPARING);
+        when(orderRepository.findById(100L)).thenReturn(Optional.of(order));
+
+        assertThatThrownBy(() -> orderService.deliver(100L, 5L))
+                .isInstanceOf(AppException.class)
+                .satisfies(ex -> assertThat(((AppException) ex).getErrorCode()).isEqualTo(ErrorCode.INVALID_ORDER_STATUS));
     }
 }
