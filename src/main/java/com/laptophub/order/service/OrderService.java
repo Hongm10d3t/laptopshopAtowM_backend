@@ -18,6 +18,8 @@ import com.laptophub.order.repository.OrderItemRepository;
 import com.laptophub.order.repository.OrderRepository;
 import com.laptophub.user.entity.Address;
 import com.laptophub.user.service.AddressService;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -86,6 +88,21 @@ public class OrderService {
         cartService.clear(userId);
 
         return new CheckoutResult(order, items);
+    }
+
+    public Page<Order> listByUser(Long userId, Pageable pageable) {
+        return orderRepository.findByUserId(userId, pageable);
+    }
+
+    // Không phân biệt "không tồn tại" và "không phải của user này" — cả 2
+    // đều RESOURCE_NOT_FOUND, giống AddressService.getOwned.
+    public Order getOwnedOrThrow(Long userId, Long orderId) {
+        return orderRepository.findByIdAndUserId(orderId, userId)
+                .orElseThrow(() -> new AppException(ErrorCode.RESOURCE_NOT_FOUND));
+    }
+
+    public List<OrderItem> getItems(Long orderId) {
+        return orderItemRepository.findByOrderId(orderId);
     }
 
     private CheckoutLine resolveLine(CartItem cartItem) {
