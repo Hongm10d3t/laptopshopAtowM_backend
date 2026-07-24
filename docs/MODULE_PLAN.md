@@ -63,6 +63,11 @@ Serial và nhiều kho chỉ bổ sung sau nếu tiến độ cho phép.
 - Tạo Order/OrderItem snapshot.
 - Reserve tồn khi đặt hàng thành công.
 - Hoàn thiện luồng COD trước.
+- Đã bổ sung sớm 2 API `GET /customer/orders` (danh sách) và
+  `GET /customer/orders/{id}` (chi tiết) — lẽ ra thuộc "Customer xem đơn" ở
+  Giai đoạn 6, nhưng tái dùng cùng DTO/service với checkout nên chi phí thấp,
+  giúp verify luồng COD end-to-end mà không cần chờ Giai đoạn 6. Hủy đơn vẫn
+  để nguyên cho Giai đoạn 6 (cần release tồn + state machine).
 
 ### Giai đoạn 6 — Xử lý đơn hàng
 
