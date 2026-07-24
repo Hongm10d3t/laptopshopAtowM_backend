@@ -37,7 +37,7 @@ public class AdminCategoryController {
 
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<CategoryResponse>> update(@PathVariable Long id,
-                                                                 @Valid @RequestBody CategoryUpdateRequest request) {
+            @Valid @RequestBody CategoryUpdateRequest request) {
         var category = categoryService.update(id, request);
         return ResponseEntity.ok(ApiResponse.success(CategoryResponse.from(category)));
     }

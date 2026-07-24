@@ -1,3 +1,4 @@
+
 package com.laptophub.inventory.repository;
 
 import com.laptophub.inventory.entity.InventoryBalance;
@@ -15,35 +16,35 @@ import java.util.Optional;
 // chỗ giữ" (0 dòng) mà không cần optimistic lock.
 public interface InventoryBalanceRepository extends JpaRepository<InventoryBalance, Long> {
 
-    Optional<InventoryBalance> findByProductVariantId(Long productVariantId);
+        Optional<InventoryBalance> findByProductVariantId(Long productVariantId);
 
-    // Dùng cho receiveStock/receiveReturn (delta dương) và adjust (delta +/-).
-    // Điều kiện chặn cả on_hand âm lẫn vi phạm reserved <= on_hand.
-    @Modifying(clearAutomatically = true)
-    @Query("UPDATE InventoryBalance b SET b.onHandQuantity = b.onHandQuantity + :delta "
-            + "WHERE b.productVariantId = :productVariantId "
-            + "AND b.onHandQuantity + :delta >= 0 "
-            + "AND b.onHandQuantity + :delta >= b.reservedQuantity")
-    int applyOnHandDelta(@Param("productVariantId") Long productVariantId, @Param("delta") int delta);
+        // Dùng cho receiveStock/receiveReturn (delta dương) và adjust (delta +/-).
+        // Điều kiện chặn cả on_hand âm lẫn vi phạm reserved <= on_hand.
+        @Modifying(clearAutomatically = true)
+        @Query("UPDATE InventoryBalance b SET b.onHandQuantity = b.onHandQuantity + :delta "
+                        + "WHERE b.productVariantId = :productVariantId "
+                        + "AND b.onHandQuantity + :delta >= 0 "
+                        + "AND b.onHandQuantity + :delta >= b.reservedQuantity")
+        int applyOnHandDelta(@Param("productVariantId") Long productVariantId, @Param("delta") int delta);
 
-    // reserve: chỉ tăng reserved nếu available (on_hand - reserved) đủ.
-    @Modifying(clearAutomatically = true)
-    @Query("UPDATE InventoryBalance b SET b.reservedQuantity = b.reservedQuantity + :quantity "
-            + "WHERE b.productVariantId = :productVariantId "
-            + "AND b.onHandQuantity - b.reservedQuantity >= :quantity")
-    int reserveQuantity(@Param("productVariantId") Long productVariantId, @Param("quantity") int quantity);
+        // reserve: chỉ tăng reserved nếu available (on_hand - reserved) đủ.
+        @Modifying(clearAutomatically = true)
+        @Query("UPDATE InventoryBalance b SET b.reservedQuantity = b.reservedQuantity + :quantity "
+                        + "WHERE b.productVariantId = :productVariantId "
+                        + "AND b.onHandQuantity - b.reservedQuantity >= :quantity")
+        int reserveQuantity(@Param("productVariantId") Long productVariantId, @Param("quantity") int quantity);
 
-    // release: chỉ giảm reserved nếu đủ reserved để giảm.
-    @Modifying(clearAutomatically = true)
-    @Query("UPDATE InventoryBalance b SET b.reservedQuantity = b.reservedQuantity - :quantity "
-            + "WHERE b.productVariantId = :productVariantId AND b.reservedQuantity >= :quantity")
-    int releaseQuantity(@Param("productVariantId") Long productVariantId, @Param("quantity") int quantity);
+        // release: chỉ giảm reserved nếu đủ reserved để giảm.
+        @Modifying(clearAutomatically = true)
+        @Query("UPDATE InventoryBalance b SET b.reservedQuantity = b.reservedQuantity - :quantity "
+                        + "WHERE b.productVariantId = :productVariantId AND b.reservedQuantity >= :quantity")
+        int releaseQuantity(@Param("productVariantId") Long productVariantId, @Param("quantity") int quantity);
 
-    // fulfill (xuất hàng): giảm cả on_hand và reserved cùng lúc, chỉ khi cả 2 đủ.
-    @Modifying(clearAutomatically = true)
-    @Query("UPDATE InventoryBalance b SET b.onHandQuantity = b.onHandQuantity - :quantity, "
-            + "b.reservedQuantity = b.reservedQuantity - :quantity "
-            + "WHERE b.productVariantId = :productVariantId "
-            + "AND b.onHandQuantity >= :quantity AND b.reservedQuantity >= :quantity")
-    int fulfillQuantity(@Param("productVariantId") Long productVariantId, @Param("quantity") int quantity);
+        // fulfill (xuất hàng): giảm cả on_hand và reserved cùng lúc, chỉ khi cả 2 đủ.
+        @Modifying(clearAutomatically = true)
+        @Query("UPDATE InventoryBalance b SET b.onHandQuantity = b.onHandQuantity - :quantity, "
+                        + "b.reservedQuantity = b.reservedQuantity - :quantity "
+                        + "WHERE b.productVariantId = :productVariantId "
+                        + "AND b.onHandQuantity >= :quantity AND b.reservedQuantity >= :quantity")
+        int fulfillQuantity(@Param("productVariantId") Long productVariantId, @Param("quantity") int quantity);
 }
