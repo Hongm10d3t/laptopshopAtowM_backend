@@ -297,4 +297,53 @@ class OrderServiceTest {
                 .isInstanceOf(AppException.class)
                 .satisfies(ex -> assertThat(((AppException) ex).getErrorCode()).isEqualTo(ErrorCode.INVALID_ORDER_STATUS));
     }
+
+    @Test
+    void ship_callsFulfillForEachItem_transitionsToShipping_andRecordsHistory() {
+        Order order = orderWithStatus(100L, OrderStatus.PREPARING);
+        when(orderRepository.findById(100L)).thenReturn(Optional.of(order));
+        OrderItem item1 = OrderItem.create(100L, 10L, "Laptop A", null, "SKU-10", BigDecimal.TEN, 2);
+        item1.setId(1000L);
+        OrderItem item2 = OrderItem.create(100L, 11L, "Laptop B", null, "SKU-11", BigDecimal.TEN, 1);
+        item2.setId(1001L);
+        when(orderItemRepository.findByOrderId(100L)).thenReturn(List.of(item1, item2));
+
+        Order result = orderService.ship(100L, 5L);
+
+        assertThat(result.getStatus()).isEqualTo(OrderStatus.SHIPPING);
+        verify(inventoryService).fulfill(10L, 2, "ORDER_ITEM", 1000L);
+        verify(inventoryService).fulfill(11L, 1, "ORDER_ITEM", 1001L);
+        ArgumentCaptor<OrderStatusHistory> captor = ArgumentCaptor.forClass(OrderStatusHistory.class);
+        verify(orderStatusHistoryRepository).save(captor.capture());
+        assertThat(captor.getValue().getFromStatus()).isEqualTo(OrderStatus.PREPARING);
+        assertThat(captor.getValue().getToStatus()).isEqualTo(OrderStatus.SHIPPING);
+    }
+
+    @Test
+    void ship_rejectsWhenNotPreparing() {
+        Order order = orderWithStatus(100L, OrderStatus.CONFIRMED);
+        when(orderRepository.findById(100L)).thenReturn(Optional.of(order));
+
+        assertThatThrownBy(() -> orderService.ship(100L, 5L))
+                .isInstanceOf(AppException.class)
+                .satisfies(ex -> assertThat(((AppException) ex).getErrorCode()).isEqualTo(ErrorCode.INVALID_ORDER_STATUS));
+        verify(inventoryService, never()).fulfill(any(), anyInt(), any(), any());
+        verify(orderStatusHistoryRepository, never()).save(any());
+    }
+
+    @Test
+    void ship_insufficientStock_propagates_andDoesNotRecordHistory() {
+        Order order = orderWithStatus(100L, OrderStatus.PREPARING);
+        when(orderRepository.findById(100L)).thenReturn(Optional.of(order));
+        OrderItem item = OrderItem.create(100L, 10L, "Laptop A", null, "SKU-10", BigDecimal.TEN, 5);
+        item.setId(1000L);
+        when(orderItemRepository.findByOrderId(100L)).thenReturn(List.of(item));
+        when(inventoryService.fulfill(any(), anyInt(), any(), any()))
+                .thenThrow(new AppException(ErrorCode.INSUFFICIENT_STOCK));
+
+        assertThatThrownBy(() -> orderService.ship(100L, 5L))
+                .isInstanceOf(AppException.class)
+                .satisfies(ex -> assertThat(((AppException) ex).getErrorCode()).isEqualTo(ErrorCode.INSUFFICIENT_STOCK));
+        verify(orderStatusHistoryRepository, never()).save(any());
+    }
 }

@@ -122,12 +122,19 @@ public class OrderService {
     }
 
     // confirm/prepare/deliver không đụng inventory nên không có rủi ro
-    // clearAutomatically — không cần load lại Order sau khi mutate.
+    // clearAutomatically — nhưng vẫn phải saveAndFlush tường minh sau khi
+    // mutate: dựa vào auto-flush ngầm của Hibernate (chỉ chắc chắn xảy ra khi
+    // transaction thật sự commit) không đáng tin cậy khi nhiều lệnh gọi
+    // @Transactional nối tiếp cùng tham gia 1 transaction (vd nhiều request
+    // liên tiếp trong 1 test @Transactional) — thay đổi có thể chỉ nằm trên
+    // object Java và bị mất khi request kế tiếp đọc lại. saveAndFlush ép ghi
+    // UPDATE ngay lập tức, không phụ thuộc thời điểm auto-flush.
     @Transactional
     public Order confirm(Long orderId, Long actingUserId) {
         Order order = getByIdOrThrow(orderId);
         OrderStatus previous = order.getStatus();
         order.confirm();
+        orderRepository.saveAndFlush(order);
         recordHistory(orderId, previous, order.getStatus(), actingUserId, null);
         return order;
     }
@@ -137,6 +144,7 @@ public class OrderService {
         Order order = getByIdOrThrow(orderId);
         OrderStatus previous = order.getStatus();
         order.prepare();
+        orderRepository.saveAndFlush(order);
         recordHistory(orderId, previous, order.getStatus(), actingUserId, null);
         return order;
     }
@@ -146,8 +154,37 @@ public class OrderService {
         Order order = getByIdOrThrow(orderId);
         OrderStatus previous = order.getStatus();
         order.deliver();
+        orderRepository.saveAndFlush(order);
         recordHistory(orderId, previous, order.getStatus(), actingUserId, null);
         return order;
+    }
+
+    // Giảm on_hand khi xuất đơn (DATABASE_DESIGN.md §4). Thứ tự bắt buộc theo
+    // đúng pattern StockReceiptService.confirm: đọc status trước (fail-fast,
+    // chưa mutate) -> lặp gọi inventoryService.fulfill cho từng dòng (mỗi lần
+    // gọi xoá persistence context vì InventoryBalanceRepository dùng
+    // @Modifying(clearAutomatically = true), khiến `order` đã load bị detach)
+    // -> LOAD LẠI Order quản lý mới rồi mới gọi .ship(). Nếu mutate trên
+    // `order` cũ trước vòng lặp, thay đổi status chỉ nằm trên object Java và
+    // không bao giờ được flush xuống DB — bug âm thầm, không có exception.
+    @Transactional
+    public Order ship(Long orderId, Long actingUserId) {
+        Order order = getByIdOrThrow(orderId);
+        if (order.getStatus() != OrderStatus.PREPARING) {
+            throw new AppException(ErrorCode.INVALID_ORDER_STATUS);
+        }
+        OrderStatus previous = order.getStatus();
+
+        List<OrderItem> items = getItems(orderId);
+        for (OrderItem item : items) {
+            inventoryService.fulfill(item.getProductVariantId(), item.getQuantity(), "ORDER_ITEM", item.getId());
+        }
+
+        Order managedOrder = getByIdOrThrow(orderId);
+        managedOrder.ship();
+        orderRepository.saveAndFlush(managedOrder);
+        recordHistory(orderId, previous, managedOrder.getStatus(), actingUserId, null);
+        return managedOrder;
     }
 
     private void recordHistory(Long orderId, OrderStatus from, OrderStatus to, Long changedByUserId, String note) {
