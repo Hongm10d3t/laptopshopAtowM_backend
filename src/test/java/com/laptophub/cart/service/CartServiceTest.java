@@ -94,11 +94,12 @@ class CartServiceTest {
         when(cartItemRepository.findByCartIdAndProductVariantId(10L, VARIANT_ID)).thenReturn(Optional.empty());
         when(cartItemRepository.save(any(CartItem.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        CartItem created = cartService.addItem(USER_ID, VARIANT_ID, 3);
+        CartLine created = cartService.addItem(USER_ID, VARIANT_ID, 3);
 
-        assertThat(created.getCartId()).isEqualTo(10L);
-        assertThat(created.getProductVariantId()).isEqualTo(VARIANT_ID);
-        assertThat(created.getQuantity()).isEqualTo(3);
+        assertThat(created.item().getCartId()).isEqualTo(10L);
+        assertThat(created.item().getProductVariantId()).isEqualTo(VARIANT_ID);
+        assertThat(created.item().getQuantity()).isEqualTo(3);
+        assertThat(created.variant().getSku()).isEqualTo("SKU-001");
     }
 
     @Test
@@ -108,9 +109,9 @@ class CartServiceTest {
         when(cartRepository.findByUserId(USER_ID)).thenReturn(Optional.of(cart));
         when(cartItemRepository.findByCartIdAndProductVariantId(10L, VARIANT_ID)).thenReturn(Optional.of(existing));
 
-        CartItem result = cartService.addItem(USER_ID, VARIANT_ID, 3);
+        CartLine result = cartService.addItem(USER_ID, VARIANT_ID, 3);
 
-        assertThat(result.getQuantity()).isEqualTo(5);
+        assertThat(result.item().getQuantity()).isEqualTo(5);
         verify(cartItemRepository, never()).save(any(CartItem.class));
     }
 
@@ -141,9 +142,10 @@ class CartServiceTest {
         when(cartRepository.findByUserId(USER_ID)).thenReturn(Optional.of(cart));
         when(cartItemRepository.findByIdAndCartId(5L, 10L)).thenReturn(Optional.of(item));
 
-        CartItem result = cartService.updateQuantity(USER_ID, 5L, 9);
+        CartLine result = cartService.updateQuantity(USER_ID, 5L, 9);
 
-        assertThat(result.getQuantity()).isEqualTo(9);
+        assertThat(result.item().getQuantity()).isEqualTo(9);
+        assertThat(result.variant().getSku()).isEqualTo("SKU-001");
     }
 
     @Test

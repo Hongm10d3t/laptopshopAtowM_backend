@@ -38,24 +38,27 @@ public class CartService {
     }
 
     // Không ép variant phải ACTIVE ở bước thêm giỏ — checkout mới là nơi chặn
-    // (PROJECT_RULES.md §6: checkout phải đọc lại trạng thái sản phẩm).
+    // (PROJECT_RULES.md §6: checkout phải đọc lại trạng thái sản phẩm). Trả về
+    // CartLine (kèm variant vừa load) để Controller build response mà không
+    // phải query lại.
     @Transactional
-    public CartItem addItem(Long userId, Long productVariantId, int quantity) {
-        productVariantService.getByIdOrThrow(productVariantId);
+    public CartLine addItem(Long userId, Long productVariantId, int quantity) {
+        var variant = productVariantService.getByIdOrThrow(productVariantId);
         Cart cart = getOrCreateCart(userId);
-        return cartItemRepository.findByCartIdAndProductVariantId(cart.getId(), productVariantId)
+        CartItem item = cartItemRepository.findByCartIdAndProductVariantId(cart.getId(), productVariantId)
                 .map(existing -> {
                     existing.increaseQuantity(quantity);
                     return existing;
                 })
                 .orElseGet(() -> cartItemRepository.save(CartItem.create(cart.getId(), productVariantId, quantity)));
+        return new CartLine(item, variant);
     }
 
     @Transactional
-    public CartItem updateQuantity(Long userId, Long itemId, int quantity) {
+    public CartLine updateQuantity(Long userId, Long itemId, int quantity) {
         CartItem item = getOwnedItem(userId, itemId);
         item.changeQuantity(quantity);
-        return item;
+        return new CartLine(item, productVariantService.getByIdOrThrow(item.getProductVariantId()));
     }
 
     @Transactional
